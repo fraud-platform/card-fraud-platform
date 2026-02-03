@@ -1,10 +1,12 @@
 # Setup
 
-Use this section for prerequisites and first-run setup of `card-fraud-platform`.
+Prerequisites, first-run onboarding, and environment bootstrap.
 
-## Baseline Commands
+## Published Files
 
-- `uv sync`
-- `doppler run -- uv run platform-up`
-- `doppler run -- uv run platform-up -- --apps`
-- `uv run platform-status`
+- _No published topic file yet._
+
+## Naming Rules
+
+- Use lowercase kebab-case for new topic docs.
+- Keep this section focused; move broad cross-cutting topics to `07-reference`.

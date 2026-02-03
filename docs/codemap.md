@@ -4,28 +4,30 @@
 
 Shared Docker Compose orchestrator for local multi-service development.
 
-## Primary Areas
+## Key Paths
 
-- `app/` or `src/`: service or application implementation.
-- `tests/` or `e2e/`: automated validation.
-- `scripts/` or `cli/`: local developer tooling.
-- `docs/`: curated documentation index and section guides.
+- `scripts/`: Local orchestration commands (`platform-up`, `platform-down`, secret/config sync).
+- `docker-compose.yml`: Shared infrastructure stack (PostgreSQL, MinIO, Redis, Redpanda).
+- `docker-compose.apps.yml`: Application services profile for cross-repo local runs.
+- `init-db/`: PostgreSQL bootstrap SQL for users and grants.
+- `docs/`: Curated onboarding and operational documentation.
 
 ## Local Commands
 
 - `uv sync`
-- `doppler run -- uv run platform-up`
-- `doppler run -- uv run platform-up -- --apps`
+- `uv run platform-up`
+- `uv run platform-up -- --apps`
 - `uv run platform-status`
 
-## Test Commands
+## Local Test Commands
 
 - `uv run platform-status`
 
 ## API Note
 
-This repo does not expose an application API; it manages infrastructure and app containers.
+This repository does not expose a business API. It orchestrates local infrastructure and app containers.
 
-## Deployment Note
+## Platform Integration
 
-Local deployment is Docker Compose-based. CI/CD is intentionally deferred.
+- Standalone mode: run this repository using its own local commands and Doppler project config.
+- Consolidated mode: run this repository through `card-fraud-platform` compose stack for cross-service validation.
