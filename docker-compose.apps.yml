@@ -1,0 +1,207 @@
+# =============================================================================
+# Card Fraud Platform - Application Containers
+# =============================================================================
+#
+# Requires shared infrastructure running first (docker-compose.yml).
+#
+# Usage (requires Doppler for env vars):
+#   # Start infra + all apps:
+#   doppler run -- docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile apps up -d
+#
+#   # Start infra + apps + load testing:
+#   doppler run -- docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile apps --profile load-testing up -d
+#
+# Prerequisites:
+#   - `doppler setup` completed in this directory (card-fraud-platform project)
+#   - All sibling repos cloned at same level as card-fraud-platform/
+#   - Shared infra containers healthy
+#
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Rule Management API (FastAPI) - Port 8000
+  # ---------------------------------------------------------------------------
+  rule-management:
+    build:
+      context: ../card-fraud-rule-management
+      dockerfile: Dockerfile
+    container_name: card-fraud-rule-management
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=local
+      - SECURITY_SKIP_JWT_VALIDATION=true
+      - DATABASE_URL_APP=postgresql://fraud_gov_app_user:${FRAUD_GOV_APP_PASSWORD}@postgres:5432/fraud_gov
+      - DATABASE_URL_ADMIN=postgresql://postgres:${POSTGRES_ADMIN_PASSWORD}@postgres:5432/fraud_gov
+      - S3_ENDPOINT_URL=http://minio:9000
+      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID}
+      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
+      - S3_REGION=${S3_REGION}
+      - S3_FORCE_PATH_STYLE=true
+      - AUTH0_DOMAIN=${AUTH0_DOMAIN}
+      - AUTH0_AUDIENCE=${RULE_MGMT_AUTH0_AUDIENCE}
+    networks:
+      - card-fraud-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    profiles:
+      - apps
+
+  # ---------------------------------------------------------------------------
+  # Rule Engine (Quarkus/Java 21) - Port 8081
+  # ---------------------------------------------------------------------------
+  rule-engine:
+    build:
+      context: ../card-fraud-rule-engine
+      dockerfile: Dockerfile
+    container_name: card-fraud-rule-engine
+    ports:
+      - "8081:8081"
+    environment:
+      # Infrastructure
+      - REDIS_URL=redis://:@redis:6379
+      - KAFKA_BOOTSTRAP_SERVERS=redpanda:29092
+      # Quarkus
+      - QUARKUS_HTTP_HOST=0.0.0.0
+      - QUARKUS_HTTP_PORT=8081
+      - QUARKUS_LOG_LEVEL=INFO
+      # Local compose: don't fail startup when MinIO doesn't yet contain rulesets
+      - RULESET_STARTUP_LOAD_ENABLED=false
+      - APP_STARTUP_VALIDATION_ENABLED=false
+      # Auth0 JWT
+      - AUTH0_DOMAIN=${AUTH0_DOMAIN}
+      - AUTH0_AUDIENCE=${RULE_ENGINE_AUTH0_AUDIENCE}
+      - AUTH0_CLIENT_ID=${RULE_ENGINE_AUTH0_CLIENT_ID}
+      - AUTH0_CLIENT_SECRET=${RULE_ENGINE_AUTH0_CLIENT_SECRET}
+      - MP_JWT_VERIFY_ISSUER=https://${AUTH0_DOMAIN}/
+      - MP_JWT_VERIFY_PUBLICKEY_LOCATION=https://${AUTH0_DOMAIN}/.well-known/jwks.json
+      - MP_JWT_VERIFY_AUDIENCES=${RULE_ENGINE_AUTH0_AUDIENCE}
+      # S3/MinIO
+      - S3_ENDPOINT_URL=http://minio:9000
+      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID}
+      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
+      - S3_REGION=${S3_REGION}
+    networks:
+      - card-fraud-network
+    depends_on:
+      redis:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/v1/evaluate/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    profiles:
+      - apps
+
+  # ---------------------------------------------------------------------------
+  # Transaction Management API (FastAPI) - Port 8002
+  # ---------------------------------------------------------------------------
+  transaction-management:
+    build:
+      context: ../card-fraud-transaction-management
+      dockerfile: Dockerfile
+    container_name: card-fraud-transaction-management
+    ports:
+      - "8002:8002"
+    environment:
+      - APP_ENV=local
+      - SECURITY_SKIP_JWT_VALIDATION=true
+      - DATABASE_URL_APP=postgresql+asyncpg://fraud_gov_app_user:${FRAUD_GOV_APP_PASSWORD}@postgres:5432/fraud_gov
+      - DATABASE_URL_ADMIN=postgresql+asyncpg://postgres:${POSTGRES_ADMIN_PASSWORD}@postgres:5432/fraud_gov
+      - KAFKA_BOOTSTRAP_SERVERS=redpanda:29092
+      - S3_ENDPOINT_URL=http://minio:9000
+      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID}
+      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
+      - S3_REGION=${S3_REGION}
+      - AUTH0_DOMAIN=${AUTH0_DOMAIN}
+      - AUTH0_AUDIENCE=${TXN_MGMT_AUTH0_AUDIENCE}
+    networks:
+      - card-fraud-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    profiles:
+      - apps
+
+  # ---------------------------------------------------------------------------
+  # Intelligence Portal (React/Vite + Nginx) - Port 5173
+  # ---------------------------------------------------------------------------
+  intelligence-portal:
+    build:
+      context: ../card-fraud-intelligence-portal
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=${VITE_API_URL}
+        - VITE_AUTH0_DOMAIN=${VITE_AUTH0_DOMAIN}
+        - VITE_AUTH0_CLIENT_ID=${VITE_AUTH0_CLIENT_ID}
+        - VITE_AUTH0_AUDIENCE=${VITE_AUTH0_AUDIENCE}
+    container_name: card-fraud-intelligence-portal
+    ports:
+      - "5173:5173"
+    networks:
+      - card-fraud-network
+    depends_on:
+      rule-management:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:5173/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    profiles:
+      - apps
+
+  # ---------------------------------------------------------------------------
+  # Locust Load Testing - Port 8089
+  # ---------------------------------------------------------------------------
+  locust:
+    image: locustio/locust:2.32.2
+    container_name: card-fraud-locust
+    ports:
+      - "8089:8089"
+    volumes:
+      - ../card-fraud-rule-engine/load-testing:/locust
+    environment:
+      - AUTH0_DOMAIN=${AUTH0_DOMAIN}
+      - AUTH0_CLIENT_ID=${RULE_ENGINE_AUTH0_CLIENT_ID}
+      - AUTH0_CLIENT_SECRET=${RULE_ENGINE_AUTH0_CLIENT_SECRET}
+      - AUTH0_AUDIENCE=${RULE_ENGINE_AUTH0_AUDIENCE}
+      - TARGET_HOST=http://rule-engine:8081
+    command: -f /locust/locustfile.py --host=http://rule-engine:8081
+    networks:
+      - card-fraud-network
+    depends_on:
+      rule-engine:
+        condition: service_healthy
+    profiles:
+      - load-testing
+
+networks:
+  card-fraud-network:
+    external: true

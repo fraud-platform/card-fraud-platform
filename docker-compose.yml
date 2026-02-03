@@ -1,0 +1,186 @@
+# =============================================================================
+# Card Fraud Platform - Shared Infrastructure
+# =============================================================================
+#
+# All Card Fraud services share this infrastructure:
+#   - PostgreSQL 18  (fraud_gov database)
+#   - MinIO          (S3-compatible object storage)
+#   - Redis 8.4      (velocity counters, caching)
+#   - Redpanda       (Kafka-compatible event streaming)
+#
+# Usage:
+#   uv run platform-up          # Start all infra (smart - skips running containers)
+#   uv run platform-down        # Stop all
+#   uv run platform-status      # Show status
+#   uv run platform-reset       # Stop and remove all data
+#
+# Direct docker compose (requires Doppler for env vars):
+#   doppler run -- docker compose up -d                    # Start infra only
+#   doppler run -- docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile apps up -d
+#   docker compose down                                    # Stop infra
+#   docker compose down -v                                 # Stop and remove data
+#
+# All environment variables are managed via Doppler (card-fraud-platform project).
+# Run `doppler setup` once in this directory to configure.
+#
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL 18 - Shared database for all services
+  # ---------------------------------------------------------------------------
+  # Single DB (fraud_gov) with single schema, shared by:
+  #   - card-fraud-rule-management (rules CRUD)
+  #   - card-fraud-transaction-management (transaction processing)
+  #   - card-fraud-intelligence-portal (read-only queries)
+  #   - card-fraud-analytics (future)
+  postgres:
+    image: postgres:18
+    container_name: card-fraud-postgres
+    environment:
+      POSTGRES_DB: fraud_gov
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD}
+      FRAUD_GOV_APP_PASSWORD: ${FRAUD_GOV_APP_PASSWORD}
+      FRAUD_GOV_ANALYTICS_PASSWORD: ${FRAUD_GOV_ANALYTICS_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+      - ./init-db:/docker-entrypoint-initdb.d
+    networks:
+      - card-fraud-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d fraud_gov"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # MinIO - S3-compatible object storage
+  # ---------------------------------------------------------------------------
+  # Shared bucket (fraud-gov-artifacts) used by:
+  #   - card-fraud-rule-management (write compiled rulesets)
+  #   - card-fraud-rule-engine (read compiled rulesets)
+  #   - card-fraud-analytics (future: read offloaded data)
+  minio:
+    image: minio/minio:latest
+    container_name: card-fraud-minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    networks:
+      - card-fraud-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/ready || nc -z localhost 9000"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  # MinIO bucket initialization (runs once on first start)
+  minio-init:
+    image: minio/mc:latest
+    container_name: card-fraud-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME}
+    entrypoint: ["sh", "-c"]
+    command: >
+      "mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD &&
+       mc mb --ignore-existing local/$$S3_BUCKET_NAME &&
+       mc anonymous set none local/$$S3_BUCKET_NAME || true &&
+       echo 'MinIO initialization complete: bucket $$S3_BUCKET_NAME ready'"
+    networks:
+      - card-fraud-network
+    restart: "no"
+
+  # ---------------------------------------------------------------------------
+  # Redis 8.4 - Velocity counters and caching
+  # ---------------------------------------------------------------------------
+  # Used by:
+  #   - card-fraud-rule-engine (atomic velocity counters, hot reload)
+  #   - card-fraud-analytics (future: caching)
+  redis:
+    image: redis:8.4-alpine
+    container_name: card-fraud-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - card-fraud-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+
+  # ---------------------------------------------------------------------------
+  # Redpanda - Kafka-compatible event streaming
+  # ---------------------------------------------------------------------------
+  # Used by:
+  #   - card-fraud-rule-engine (publish decision events)
+  #   - card-fraud-transaction-management (consume decision events)
+  redpanda:
+    image: redpandadata/redpanda:v24.3.11
+    container_name: card-fraud-redpanda
+    ports:
+      - "9092:9092"    # Kafka API (external)
+      - "9644:9644"    # Redpanda Admin API
+    volumes:
+      - redpanda_data:/var/lib/redpanda
+    networks:
+      - card-fraud-network
+    command: >
+      redpanda start
+      --kafka-addr internal://0.0.0.0:29092,external://0.0.0.0:9092
+      --advertise-kafka-addr internal://redpanda:29092,external://localhost:9092
+      --pandaproxy-addr 0.0.0.0:8082
+      --advertise-pandaproxy-addr localhost:8082
+      --rpc-addr 0.0.0.0:33145
+      --advertise-rpc-addr localhost:33145
+      --schema-registry-addr 0.0.0.0:8381
+      --smp 1
+      --memory 1G
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "health"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  # Redpanda Console - Web UI for topic management
+  redpanda-console:
+    image: redpandadata/console:v2.3.4
+    container_name: card-fraud-redpanda-console
+    ports:
+      - "8083:8080"
+    environment:
+      KAFKA_BROKERS: redpanda:29092
+      CONNECTORS_ENABLED: "false"
+    networks:
+      - card-fraud-network
+    depends_on:
+      redpanda:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  minio_data:
+  redis_data:
+  redpanda_data:
+
+networks:
+  card-fraud-network:
+    name: card-fraud-network
+    driver: bridge

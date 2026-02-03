@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+dist/
+
+# Environment
+.env
+.env.local
+
+# Docker override (local customizations)
+docker-compose.override.yml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary exclusions until documentation/agent files are standardized
+docs/
+CLAUDE.md
+claude.md
+STATUS.md
+status.md
+SESSION_HANDOFF.md
