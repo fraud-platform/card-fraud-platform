@@ -1,19 +1,32 @@
-# Documentation
+# Card Fraud Platform Docs
 
-This folder follows the cross-repo docs standard for the Fraud Platform org.
+Shared Docker Compose orchestrator for local multi-service development.
 
-## Naming Standard
+## Documentation Standard
 
-- Use lowercase kebab-case for markdown files: `local-setup.md`, `security-hardening.md`.
-- Use numbered lowercase folders for ordered sections: `01-setup`, `02-development`.
-- Avoid mixed case, spaces, and underscores in file/folder names.
-- Keep archived or draft notes out of published docs (`archive/`, `TODO`, `STATUS`).
+- File names: lowercase kebab-case (for example `local-setup.md`).
+- Section folders: numbered lowercase (`01-setup` through `07-reference`).
+- Keep docs concise and executable for local development.
+- Do not publish TODO/archive/session notes.
 
-## Publication Policy (Current)
+## Section Map
 
-Only curated docs are tracked in Git for now:
+- `01-setup/`: prerequisites, bootstrap, local environment setup.
+- `02-development/`: daily development workflow and conventions.
+- `03-api/`: API surface and contract references.
+- `04-testing/`: local test strategy and commands.
+- `05-deployment/`: local deployment approach and release notes.
+- `06-operations/`: runbooks, troubleshooting, observability.
+- `07-reference/`: glossary, decisions, and cross-repo references.
+
+## Quick Start Commands
+
+- `uv sync`
+- `doppler run -- uv run platform-up`
+- `doppler run -- uv run platform-up -- --apps`
+- `uv run platform-status`
+
+## Published Files
 
 - `docs/README.md`
 - `docs/codemap.md`
-
-All other local docs remain untracked until they are reorganized and reviewed.
