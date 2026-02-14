@@ -1,0 +1,22 @@
+services:
+  rule-engine-auth:
+    environment:
+      - APP_ENV=local
+      - SECURITY_SKIP_JWT_VALIDATION=true
+      - QUARKUS_SMALLRYE_JWT_ENABLED=false
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1g
+
+  rule-engine-monitoring:
+    environment:
+      - APP_ENV=local
+      - SECURITY_SKIP_JWT_VALIDATION=true
+      - QUARKUS_SMALLRYE_JWT_ENABLED=false
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1g

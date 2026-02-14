@@ -22,7 +22,8 @@ ALL_CONTAINERS = {
     ],
     "Applications": [
         ("card-fraud-rule-management", "Rule Management API", "8000"),
-        ("card-fraud-rule-engine", "Rule Engine", "8081"),
+        ("card-fraud-rule-engine-auth", "Rule Engine AUTH", "8081"),
+        ("card-fraud-rule-engine-monitoring", "Rule Engine MONITORING", "8082"),
         ("card-fraud-transaction-management", "Transaction Mgmt API", "8002"),
         ("card-fraud-intelligence-portal", "Intelligence Portal", "5173"),
     ],

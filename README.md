@@ -17,7 +17,8 @@ All repos should be cloned as siblings in the same parent directory:
 github/
 ├── card-fraud-platform/                  # THIS REPO - infrastructure orchestrator
 ├── card-fraud-rule-management/           # FastAPI - rule CRUD & compilation
-├── card-fraud-rule-engine/               # Quarkus - real-time evaluation engine
+├── card-fraud-rule-engine-auth/          # Quarkus - AUTH evaluation engine
+  |-- card-fraud-rule-engine-monitoring   # Quarkus MONITORING engine
 ├── card-fraud-transaction-management/    # FastAPI - transaction processing
 ├── card-fraud-intelligence-portal/       # React - fraud operations UI
 └── card-fraud-analytics/                 # (future)
@@ -30,7 +31,8 @@ cd C:\Users\kanna\github
 # Clone each repo (replace with your org URL)
 git clone <url>/card-fraud-platform
 git clone <url>/card-fraud-rule-management
-git clone <url>/card-fraud-rule-engine
+git clone <url>/card-fraud-rule-engine-auth
+git clone <url>/card-fraud-rule-engine-monitoring
 git clone <url>/card-fraud-transaction-management
 git clone <url>/card-fraud-intelligence-portal
 
@@ -120,7 +122,8 @@ orchestration.
 |-----------------|---------|
 | `card-fraud-platform` | docker-compose (this repo) |
 | `card-fraud-rule-management` | standalone `uvicorn` dev |
-| `card-fraud-rule-engine` | standalone `mvn quarkus:dev` |
+| `card-fraud-rule-engine-auth` | standalone `mvn quarkus:dev` |
+| `card-fraud-rule-engine-monitoring` | standalone `mvn quarkus:dev` |
 | `card-fraud-transaction-management` | standalone `uvicorn` dev |
 | `card-fraud-intelligence-portal` | standalone `pnpm dev` |
 
@@ -156,15 +159,16 @@ card-fraud-network (Docker bridge)
 │
 │  Shared Infrastructure (always running)
 ├── card-fraud-postgres          (5432)  ← rule-mgmt, txn-mgmt, portal
-├── card-fraud-minio             (9000)  ← rule-mgmt (write), rule-engine (read)
+├── card-fraud-minio             (9000)  ← rule-mgmt (write), rule-engine-auth/monitoring (read)
 ├── card-fraud-minio-init        (exit)  ← one-shot bucket creation
-├── card-fraud-redis             (6379)  ← rule-engine (velocity counters)
-├── card-fraud-redpanda          (9092)  ← rule-engine (pub), txn-mgmt (sub)
+├── card-fraud-redis             (6379)  ← rule-engine-auth/monitoring (velocity counters)
+├── card-fraud-redpanda          (9092)  ← rule-engine-auth/monitoring (pub), txn-mgmt (sub)
 ├── card-fraud-redpanda-console  (8083)  ← browser topic management
 │
 │  Application Containers (--apps profile)
 ├── card-fraud-rule-management   (8000)  ← FastAPI
-├── card-fraud-rule-engine       (8081)  ← Quarkus/Java 21
+  |-- card-fraud-rule-engine-auth       (8081)  <- Quarkus/Java 25
+  |-- card-fraud-rule-engine-monitoring (8082)  <- Quarkus/Java 25
 ├── card-fraud-transaction-management (8002)  ← FastAPI
 ├── card-fraud-intelligence-portal (5173)  ← React/Nginx
 └── card-fraud-locust            (8089)  ← load testing profile
@@ -210,7 +214,8 @@ consumer groups.
 | Application | Host Port | Container Port | Health Check |
 |-------------|-----------|----------------|--------------|
 | Rule Management API (FastAPI) | 8000 | 8000 | http://localhost:8000/api/v1/health |
-| Rule Engine (Quarkus) | 8081 | 8081 | http://localhost:8081/health |
+| Rule Engine AUTH (Quarkus) | 8081 | 8081 | http://localhost:8081/v1/evaluate/health |
+| Rule Engine MONITORING (Quarkus) | 8082 | 8081 | http://localhost:8082/v1/evaluate/health |
 | Transaction Management API (FastAPI) | 8002 | 8002 | http://localhost:8002/api/v1/health |
 | Intelligence Portal (React/Nginx) | 5173 | 5173 | http://localhost:5173/health |
 
@@ -282,7 +287,8 @@ After `doppler run -- uv run platform-up -- --apps`:
 ```powershell
 # Test application health endpoints
 curl http://localhost:8000/api/v1/health     # Rule Management
-curl http://localhost:8081/health             # Rule Engine
+curl http://localhost:8081/v1/evaluate/health     # Rule Engine AUTH
+curl http://localhost:8082/v1/evaluate/health     # Rule Engine MONITORING
 curl http://localhost:8002/api/v1/health     # Transaction Management
 curl http://localhost:5173/health             # Intelligence Portal
 ```
@@ -375,7 +381,8 @@ doppler run -- uv run platform-up
 GitHub Organization: card-fraud
 ├── card-fraud-platform                 # Infra orchestrator
 ├── card-fraud-rule-management          # FastAPI backend
-├── card-fraud-rule-engine              # Quarkus engine
+├── card-fraud-rule-engine-auth         # Quarkus AUTH engine
+  |-- card-fraud-rule-engine-monitoring   # Quarkus MONITORING engine
 ├── card-fraud-transaction-management   # FastAPI backend
 ├── card-fraud-intelligence-portal      # React frontend
 └── card-fraud-analytics                # (future)

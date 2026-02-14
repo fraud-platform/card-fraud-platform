@@ -58,10 +58,11 @@ uv run platform-status
 | Service | Container | Host Port | Container Port | Source Repo |
 |---------|-----------|-----------|----------------|-------------|
 | Rule Management API | `card-fraud-rule-management` | 8000 | 8000 | ../card-fraud-rule-management |
-| Rule Engine | `card-fraud-rule-engine` | 8081 | 8081 | ../card-fraud-rule-engine |
+| Rule Engine AUTH | `card-fraud-rule-engine-auth` | 8081 | 8081 | ../card-fraud-rule-engine-auth |
+| Rule Engine MONITORING | `card-fraud-rule-engine-monitoring` | 8082 | 8081 | ../card-fraud-rule-engine-monitoring |
 | Transaction Management API | `card-fraud-transaction-management` | 8002 | 8002 | ../card-fraud-transaction-management |
 | Intelligence Portal | `card-fraud-intelligence-portal` | 5173 | 5173 | ../card-fraud-intelligence-portal |
-| Locust (load testing) | `card-fraud-locust` | 8089 | 8089 | ../card-fraud-rule-engine/load-testing |
+| Locust (load testing) | `card-fraud-locust` | 8089 | 8089 | ../card-fraud-e2e-load-testing |
 
 ## Commands
 
@@ -85,7 +86,8 @@ card-fraud-network (Docker bridge)
 ├── card-fraud-redpanda        (9092)  ← rule-engine (pub), txn-mgmt (sub)
 ├── card-fraud-redpanda-console(8083)
 ├── card-fraud-rule-management (8000)  ← [apps profile]
-├── card-fraud-rule-engine     (8081)  ← [apps profile]
+  |-- card-fraud-rule-engine-auth (8081)  <- [apps profile]
+  |-- card-fraud-rule-engine-monitoring (8082)  <- [apps profile]
 ├── card-fraud-transaction-management (8002)  ← [apps profile]
 ├── card-fraud-intelligence-portal (5173)  ← [apps profile]
 └── card-fraud-locust          (8089)  ← [load-testing profile]
@@ -199,7 +201,8 @@ All Dockerfiles in the platform follow these conventions:
 github/
 ├── card-fraud-platform/                  # THIS REPO - infrastructure orchestrator
 ├── card-fraud-rule-management/           # FastAPI - rule CRUD
-├── card-fraud-rule-engine/               # Quarkus - evaluation engine
+├── card-fraud-rule-engine-auth/          # Quarkus - AUTH evaluation engine
+  |-- card-fraud-rule-engine-monitoring/    # Quarkus - MONITORING evaluation engine
 ├── card-fraud-transaction-management/    # FastAPI - transaction processing
 ├── card-fraud-intelligence-portal/       # React - fraud ops UI
 └── card-fraud-analytics/                 # (future)

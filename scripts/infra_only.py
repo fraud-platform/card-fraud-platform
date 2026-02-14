@@ -5,7 +5,7 @@ Platform Infrastructure Orchestrator
 This script ONLY handles platform infrastructure (Redis, Redpanda, MinIO).
 It checks if infrastructure is running, and starts it only if down.
 
-This is used by the 10K TPS validation script in card-fraud-rule-engine.
+This is used by the 10K TPS validation script in card-fraud-rule-engine-auth.
 
 Usage:
     python scripts/infra_only.py [--down] [--status]
@@ -140,3 +140,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

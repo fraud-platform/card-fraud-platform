@@ -50,6 +50,14 @@ services:
       - ./init-db:/docker-entrypoint-initdb.d
     networks:
       - card-fraud-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d fraud_gov"]
       interval: 5s
@@ -61,7 +69,7 @@ services:
   # ---------------------------------------------------------------------------
   # Shared bucket (fraud-gov-artifacts) used by:
   #   - card-fraud-rule-management (write compiled rulesets)
-  #   - card-fraud-rule-engine (read compiled rulesets)
+  #   - card-fraud-rule-engine-auth + card-fraud-rule-engine-monitoring (read compiled rulesets)
   #   - card-fraud-analytics (future: read offloaded data)
   minio:
     image: minio/minio:latest
@@ -77,6 +85,14 @@ services:
       - minio_data:/data
     networks:
       - card-fraud-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/ready || nc -z localhost 9000"]
       interval: 5s
@@ -108,7 +124,7 @@ services:
   # Redis 8.4 - Velocity counters and caching
   # ---------------------------------------------------------------------------
   # Used by:
-  #   - card-fraud-rule-engine (atomic velocity counters, hot reload)
+  #   - card-fraud-rule-engine-auth + card-fraud-rule-engine-monitoring (atomic velocity counters, hot reload)
   #   - card-fraud-analytics (future: caching)
   redis:
     image: redis:8.4-alpine
@@ -119,18 +135,26 @@ services:
       - redis_data:/data
     networks:
       - card-fraud-network
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 512M
+        reservations:
+          cpus: '1'
+          memory: 512M
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
 
   # ---------------------------------------------------------------------------
   # Redpanda - Kafka-compatible event streaming
   # ---------------------------------------------------------------------------
   # Used by:
-  #   - card-fraud-rule-engine (publish decision events)
+  #   - card-fraud-rule-engine-auth + card-fraud-rule-engine-monitoring (publish decision events)
   #   - card-fraud-transaction-management (consume decision events)
   redpanda:
     image: redpandadata/redpanda:v24.3.11
@@ -142,6 +166,14 @@ services:
       - redpanda_data:/var/lib/redpanda
     networks:
       - card-fraud-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2500M
+        reservations:
+          cpus: '1'
+          memory: 2G
     command: >
       redpanda start
       --kafka-addr internal://0.0.0.0:29092,external://0.0.0.0:9092
@@ -152,7 +184,7 @@ services:
       --advertise-rpc-addr localhost:33145
       --schema-registry-addr 0.0.0.0:8381
       --smp 1
-      --memory 1G
+      --memory 2G
     healthcheck:
       test: ["CMD", "rpk", "cluster", "health"]
       interval: 10s

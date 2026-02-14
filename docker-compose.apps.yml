@@ -32,6 +32,7 @@ services:
     environment:
       - APP_ENV=local
       - SECURITY_SKIP_JWT_VALIDATION=true
+      - CORS_ORIGINS=${CORS_ORIGINS}
       - DATABASE_URL_APP=postgresql://fraud_gov_app_user:${FRAUD_GOV_APP_PASSWORD}@postgres:5432/fraud_gov
       - DATABASE_URL_ADMIN=postgresql://postgres:${POSTGRES_ADMIN_PASSWORD}@postgres:5432/fraud_gov
       - S3_ENDPOINT_URL=http://minio:9000
@@ -59,27 +60,38 @@ services:
       - apps
 
   # ---------------------------------------------------------------------------
-  # Rule Engine (Quarkus/Java 21) - Port 8081
+  # Rule Engine AUTH (Quarkus/Java 21) - Port 8081
   # ---------------------------------------------------------------------------
-  rule-engine:
+  rule-engine-auth:
     build:
-      context: ../card-fraud-rule-engine
+      context: ../card-fraud-rule-engine-auth
       dockerfile: Dockerfile
-    container_name: card-fraud-rule-engine
+    container_name: card-fraud-rule-engine-auth
     ports:
       - "8081:8081"
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 2G
+        reservations:
+          cpus: '2'
+          memory: 1G
     environment:
-      # Infrastructure
       - REDIS_URL=redis://:@redis:6379
       - KAFKA_BOOTSTRAP_SERVERS=redpanda:29092
-      # Quarkus
       - QUARKUS_HTTP_HOST=0.0.0.0
       - QUARKUS_HTTP_PORT=8081
       - QUARKUS_LOG_LEVEL=INFO
-      # Local compose: don't fail startup when MinIO doesn't yet contain rulesets
+      - JAVA_OPTS=-Xms1G -Xmx1536M -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+AlwaysPreTouch
+      - LOAD_SHEDDING_ENABLED=false
       - RULESET_STARTUP_LOAD_ENABLED=false
-      - APP_STARTUP_VALIDATION_ENABLED=false
-      # Auth0 JWT
+      - RULESET_STARTUP_FAIL_FAST=false
+      - STARTUP_VALIDATION=false
+      - QUARKUS_SMALLRYE_JWT_ENABLED=false
+      - SECURITY_SKIP_JWT_VALIDATION=true
+      - APP_ENV=local
+      - JAVA_JFR_OPTS=-XX:StartFlightRecording=duration=180s,filename=/tmp/flight.jfr,settings=profile
       - AUTH0_DOMAIN=${AUTH0_DOMAIN}
       - AUTH0_AUDIENCE=${RULE_ENGINE_AUTH0_AUDIENCE}
       - AUTH0_CLIENT_ID=${RULE_ENGINE_AUTH0_CLIENT_ID}
@@ -87,7 +99,6 @@ services:
       - MP_JWT_VERIFY_ISSUER=https://${AUTH0_DOMAIN}/
       - MP_JWT_VERIFY_PUBLICKEY_LOCATION=https://${AUTH0_DOMAIN}/.well-known/jwks.json
       - MP_JWT_VERIFY_AUDIENCES=${RULE_ENGINE_AUTH0_AUDIENCE}
-      # S3/MinIO
       - S3_ENDPOINT_URL=http://minio:9000
       - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID}
       - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY}
@@ -101,7 +112,15 @@ services:
       redpanda:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/v1/evaluate/health"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:8081/v1/evaluate/health",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -109,6 +128,74 @@ services:
     profiles:
       - apps
 
+  # ---------------------------------------------------------------------------
+  # Rule Engine MONITORING (Quarkus/Java 21) - Port 8082 -> 8081
+  # ---------------------------------------------------------------------------
+  rule-engine-monitoring:
+    build:
+      context: ../card-fraud-rule-engine-monitoring
+      dockerfile: Dockerfile
+    container_name: card-fraud-rule-engine-monitoring
+    ports:
+      - "8082:8081"
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 2G
+        reservations:
+          cpus: '2'
+          memory: 1G
+    environment:
+      - REDIS_URL=redis://:@redis:6379
+      - KAFKA_BOOTSTRAP_SERVERS=redpanda:29092
+      - QUARKUS_HTTP_HOST=0.0.0.0
+      - QUARKUS_HTTP_PORT=8081
+      - QUARKUS_LOG_LEVEL=INFO
+      - JAVA_OPTS=-Xms1G -Xmx1536M -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+AlwaysPreTouch
+      - LOAD_SHEDDING_ENABLED=false
+      - RULESET_STARTUP_LOAD_ENABLED=false
+      - RULESET_STARTUP_FAIL_FAST=false
+      - STARTUP_VALIDATION=false
+      - QUARKUS_SMALLRYE_JWT_ENABLED=false
+      - SECURITY_SKIP_JWT_VALIDATION=true
+      - APP_ENV=local
+      - JAVA_JFR_OPTS=-XX:StartFlightRecording=duration=180s,filename=/tmp/flight.jfr,settings=profile
+      - AUTH0_DOMAIN=${AUTH0_DOMAIN}
+      - AUTH0_AUDIENCE=${RULE_ENGINE_AUTH0_AUDIENCE}
+      - AUTH0_CLIENT_ID=${RULE_ENGINE_AUTH0_CLIENT_ID}
+      - AUTH0_CLIENT_SECRET=${RULE_ENGINE_AUTH0_CLIENT_SECRET}
+      - MP_JWT_VERIFY_ISSUER=https://${AUTH0_DOMAIN}/
+      - MP_JWT_VERIFY_PUBLICKEY_LOCATION=https://${AUTH0_DOMAIN}/.well-known/jwks.json
+      - MP_JWT_VERIFY_AUDIENCES=${RULE_ENGINE_AUTH0_AUDIENCE}
+      - S3_ENDPOINT_URL=http://minio:9000
+      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID}
+      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
+      - S3_REGION=${S3_REGION}
+    networks:
+      - card-fraud-network
+    depends_on:
+      redis:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:8081/v1/evaluate/health",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    profiles:
+      - apps
   # ---------------------------------------------------------------------------
   # Transaction Management API (FastAPI) - Port 8002
   # ---------------------------------------------------------------------------
@@ -122,6 +209,7 @@ services:
     environment:
       - APP_ENV=local
       - SECURITY_SKIP_JWT_VALIDATION=true
+      - SECURITY_CORS_ALLOWED_ORIGINS=${SECURITY_CORS_ALLOWED_ORIGINS}
       - DATABASE_URL_APP=postgresql+asyncpg://fraud_gov_app_user:${FRAUD_GOV_APP_PASSWORD}@postgres:5432/fraud_gov
       - DATABASE_URL_ADMIN=postgresql+asyncpg://postgres:${POSTGRES_ADMIN_PASSWORD}@postgres:5432/fraud_gov
       - KAFKA_BOOTSTRAP_SERVERS=redpanda:29092
@@ -141,6 +229,41 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8002/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    profiles:
+      - apps
+
+  # ---------------------------------------------------------------------------
+  # Ops Analyst Agent (FastAPI) - Port 8003
+  # ---------------------------------------------------------------------------
+  ops-analyst-agent:
+    build:
+      context: ../card-fraud-ops-analyst-agent
+      dockerfile: Dockerfile
+    container_name: card-fraud-ops-analyst-agent
+    ports:
+      - "8003:8003"
+    environment:
+      - APP_ENV=local
+      - SECURITY_SKIP_JWT_VALIDATION=true
+      - SECURITY_CORS_ALLOWED_ORIGINS=${SECURITY_CORS_ALLOWED_ORIGINS}
+      - DATABASE_URL_APP=postgresql+asyncpg://fraud_gov_app_user:${FRAUD_GOV_APP_PASSWORD}@postgres:5432/fraud_gov
+      - DATABASE_URL_ADMIN=postgresql+asyncpg://postgres:${POSTGRES_ADMIN_PASSWORD}@postgres:5432/fraud_gov
+      - AUTH0_DOMAIN=${AUTH0_DOMAIN}
+      - AUTH0_AUDIENCE=${OPS_ANALYST_AUTH0_AUDIENCE}
+      - AUTH0_CLIENT_ID=${OPS_ANALYST_AUTH0_CLIENT_ID}
+      - AUTH0_CLIENT_SECRET=${OPS_ANALYST_AUTH0_CLIENT_SECRET}
+      - OPS_AGENT_RULE_MANAGEMENT_BASE_URL=http://rule-management:8000/api/v1
+    networks:
+      - card-fraud-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/api/v1/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -169,7 +292,15 @@ services:
       rule-management:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:5173/health"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://127.0.0.1:5173/health",
+        ]
       interval: 30s
       timeout: 3s
       retries: 3
@@ -186,22 +317,30 @@ services:
     ports:
       - "8089:8089"
     volumes:
-      - ../card-fraud-rule-engine/load-testing:/locust
+      - ../card-fraud-e2e-load-testing:/locust
     environment:
       - AUTH0_DOMAIN=${AUTH0_DOMAIN}
       - AUTH0_CLIENT_ID=${RULE_ENGINE_AUTH0_CLIENT_ID}
       - AUTH0_CLIENT_SECRET=${RULE_ENGINE_AUTH0_CLIENT_SECRET}
       - AUTH0_AUDIENCE=${RULE_ENGINE_AUTH0_AUDIENCE}
-      - TARGET_HOST=http://rule-engine:8081
-    command: -f /locust/locustfile.py --host=http://rule-engine:8081
+      - RULE_ENGINE_AUTH_URL=http://rule-engine-auth:8081
+      - RULE_ENGINE_MONITORING_URL=http://rule-engine-monitoring:8081
+      - RULE_ENGINE_URL=http://rule-engine-auth:8081
+      - TRANSACTION_MGMT_URL=http://transaction-management:8002
+      - RULE_MGMT_URL=http://rule-management:8000
+      - OPS_ANALYST_URL=http://ops-analyst-agent:8003
+    command: -f /locust/src/locustfile.py --host=http://rule-engine-auth:8081
     networks:
       - card-fraud-network
     depends_on:
-      rule-engine:
+      rule-engine-auth:
+        condition: service_healthy
+      rule-engine-monitoring:
+        condition: service_healthy
+      ops-analyst-agent:
         condition: service_healthy
     profiles:
       - load-testing
-
 networks:
   card-fraud-network:
     external: true

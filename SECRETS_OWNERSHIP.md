@@ -14,7 +14,8 @@ This file defines Doppler ownership across all local Card Fraud repos.
 |---|---|---|
 | `card-fraud-platform` | Shared infra + app containers via compose | Platform repo |
 | `card-fraud-rule-management` | Standalone RM API dev/tests | Rule Management repo |
-| `card-fraud-rule-engine` | Standalone Rule Engine dev/tests | Rule Engine repo |
+| card-fraud-rule-engine-auth | Standalone AUTH Rule Engine dev/tests | Rule Engine AUTH repo |
+| card-fraud-rule-engine-monitoring | Standalone MONITORING Rule Engine dev/tests | Rule Engine MONITORING repo |
 | `card-fraud-transaction-management` | Standalone TM API dev/tests | Transaction Mgmt repo |
 | `card-fraud-intelligence-portal` | Standalone portal dev | Portal repo |
 | `card-fraud-e2e-load-testing` | Standalone e2e/load execution | E2E repo |

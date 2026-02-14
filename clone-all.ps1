@@ -14,7 +14,8 @@ param(
 $repos = @(
     "card-fraud-platform"
     "card-fraud-rule-management"
-    "card-fraud-rule-engine"
+    "card-fraud-rule-engine-auth"
+    "card-fraud-rule-engine-monitoring"
     "card-fraud-transaction-management"
     "card-fraud-intelligence-portal"
 )
