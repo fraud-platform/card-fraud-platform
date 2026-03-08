@@ -2,19 +2,20 @@
 # Card Fraud Platform - Application Containers
 # =============================================================================
 #
-# Requires shared infrastructure running first (docker-compose.yml).
+# Application services that run as part of the shared platform stack.
 #
 # Usage (requires Doppler for env vars):
-#   # Start infra + all apps:
-#   doppler run -- docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile apps up -d
+#   LLM/vector secrets live in card-fraud-ops-analyst-agent Doppler (single source of truth).
+#   Platform secrets (DB, auth, S3) live in card-fraud-platform Doppler.
+#   Merge both when starting containers:
 #
-#   # Start infra + apps + load testing:
-#   doppler run -- docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile apps --profile load-testing up -d
+#   eval $(doppler secrets download --project card-fraud-ops-analyst-agent --config local --no-file --format env-no-quotes) && \
+#     doppler run --project card-fraud-platform --config local -- \
+#     docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile platform up -d
 #
 # Prerequisites:
-#   - `doppler setup` completed in this directory (card-fraud-platform project)
+#   - `doppler setup` completed (both card-fraud-platform and card-fraud-ops-analyst-agent projects)
 #   - All sibling repos cloned at same level as card-fraud-platform/
-#   - Shared infra containers healthy
 #
 # =============================================================================
 
@@ -29,12 +30,20 @@ services:
     container_name: card-fraud-rule-management
     ports:
       - "8000:8000"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     environment:
       - APP_ENV=local
       - SECURITY_SKIP_JWT_VALIDATION=true
-      - CORS_ORIGINS=${CORS_ORIGINS}
-      - DATABASE_URL_APP=postgresql://fraud_gov_app_user:${FRAUD_GOV_APP_PASSWORD}@postgres:5432/fraud_gov
-      - DATABASE_URL_ADMIN=postgresql://postgres:${POSTGRES_ADMIN_PASSWORD}@postgres:5432/fraud_gov
+      - SECURITY_CORS_ALLOWED_ORIGINS=${SECURITY_CORS_ALLOWED_ORIGINS}
+      - DATABASE_URL_APP=postgresql://fraud_gov_app_user:${FRAUD_GOV_APP_PASSWORD}@postgres:5432/fraud_gov?pool_size=20&max_overflow=10
+      - DATABASE_URL_ADMIN=postgresql://postgres:${POSTGRES_ADMIN_PASSWORD}@postgres:5432/fraud_gov?pool_size=20&max_overflow=10
       - S3_ENDPOINT_URL=http://minio:9000
       - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID}
       - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY}
@@ -43,6 +52,11 @@ services:
       - S3_FORCE_PATH_STYLE=true
       - AUTH0_DOMAIN=${AUTH0_DOMAIN}
       - AUTH0_AUDIENCE=${RULE_MGMT_AUTH0_AUDIENCE}
+      # OpenTelemetry - connect to platform Jaeger
+      - OTEL_ENABLED=true
+      - OTEL_SERVICE_NAME=fraud-governance-api
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
+      - OTEL_TRACES_SAMPLER=parent_trace_always
     networks:
       - card-fraud-network
     depends_on:
@@ -57,10 +71,10 @@ services:
       retries: 3
       start_period: 40s
     profiles:
-      - apps
+      - platform
 
   # ---------------------------------------------------------------------------
-  # Rule Engine AUTH (Quarkus/Java 21) - Port 8081
+  # Rule Engine AUTH (Quarkus/Java 25) - Port 8081
   # ---------------------------------------------------------------------------
   rule-engine-auth:
     build:
@@ -80,6 +94,7 @@ services:
     environment:
       - REDIS_URL=redis://:@redis:6379
       - KAFKA_BOOTSTRAP_SERVERS=redpanda:29092
+      - QUARKUS_PROFILE=load-test
       - QUARKUS_HTTP_HOST=0.0.0.0
       - QUARKUS_HTTP_PORT=8081
       - QUARKUS_LOG_LEVEL=INFO
@@ -91,7 +106,8 @@ services:
       - QUARKUS_SMALLRYE_JWT_ENABLED=false
       - SECURITY_SKIP_JWT_VALIDATION=true
       - APP_ENV=local
-      - JAVA_JFR_OPTS=-XX:StartFlightRecording=duration=180s,filename=/tmp/flight.jfr,settings=profile
+      # JFR is intentionally OFF by default for baseline performance runs.
+      # Enable via docker-compose.override.jfr.yml when you explicitly want profiling.
       - AUTH0_DOMAIN=${AUTH0_DOMAIN}
       - AUTH0_AUDIENCE=${RULE_ENGINE_AUTH0_AUDIENCE}
       - AUTH0_CLIENT_ID=${RULE_ENGINE_AUTH0_CLIENT_ID}
@@ -126,10 +142,10 @@ services:
       retries: 5
       start_period: 30s
     profiles:
-      - apps
+      - platform
 
   # ---------------------------------------------------------------------------
-  # Rule Engine MONITORING (Quarkus/Java 21) - Port 8082 -> 8081
+  # Rule Engine MONITORING (Quarkus/Java 25) - Port 8082 -> 8081
   # ---------------------------------------------------------------------------
   rule-engine-monitoring:
     build:
@@ -160,7 +176,8 @@ services:
       - QUARKUS_SMALLRYE_JWT_ENABLED=false
       - SECURITY_SKIP_JWT_VALIDATION=true
       - APP_ENV=local
-      - JAVA_JFR_OPTS=-XX:StartFlightRecording=duration=180s,filename=/tmp/flight.jfr,settings=profile
+      # JFR is intentionally OFF by default for baseline performance runs.
+      # Enable via docker-compose.override.jfr.yml when you explicitly want profiling.
       - AUTH0_DOMAIN=${AUTH0_DOMAIN}
       - AUTH0_AUDIENCE=${RULE_ENGINE_AUTH0_AUDIENCE}
       - AUTH0_CLIENT_ID=${RULE_ENGINE_AUTH0_CLIENT_ID}
@@ -195,7 +212,7 @@ services:
       retries: 5
       start_period: 30s
     profiles:
-      - apps
+      - platform
   # ---------------------------------------------------------------------------
   # Transaction Management API (FastAPI) - Port 8002
   # ---------------------------------------------------------------------------
@@ -206,12 +223,20 @@ services:
     container_name: card-fraud-transaction-management
     ports:
       - "8002:8002"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     environment:
       - APP_ENV=local
       - SECURITY_SKIP_JWT_VALIDATION=true
       - SECURITY_CORS_ALLOWED_ORIGINS=${SECURITY_CORS_ALLOWED_ORIGINS}
-      - DATABASE_URL_APP=postgresql+asyncpg://fraud_gov_app_user:${FRAUD_GOV_APP_PASSWORD}@postgres:5432/fraud_gov
-      - DATABASE_URL_ADMIN=postgresql+asyncpg://postgres:${POSTGRES_ADMIN_PASSWORD}@postgres:5432/fraud_gov
+      - DATABASE_URL_APP=postgresql+asyncpg://fraud_gov_app_user:${FRAUD_GOV_APP_PASSWORD}@postgres:5432/fraud_gov?pool_size=20&max_overflow=10
+      - DATABASE_URL_ADMIN=postgresql+asyncpg://postgres:${POSTGRES_ADMIN_PASSWORD}@postgres:5432/fraud_gov?pool_size=20&max_overflow=10
       - KAFKA_BOOTSTRAP_SERVERS=redpanda:29092
       - S3_ENDPOINT_URL=http://minio:9000
       - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID}
@@ -234,7 +259,7 @@ services:
       retries: 3
       start_period: 40s
     profiles:
-      - apps
+      - platform
 
   # ---------------------------------------------------------------------------
   # Ops Analyst Agent (FastAPI) - Port 8003
@@ -246,22 +271,51 @@ services:
     container_name: card-fraud-ops-analyst-agent
     ports:
       - "8003:8003"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     environment:
       - APP_ENV=local
       - SECURITY_SKIP_JWT_VALIDATION=true
       - SECURITY_CORS_ALLOWED_ORIGINS=${SECURITY_CORS_ALLOWED_ORIGINS}
-      - DATABASE_URL_APP=postgresql+asyncpg://fraud_gov_app_user:${FRAUD_GOV_APP_PASSWORD}@postgres:5432/fraud_gov
-      - DATABASE_URL_ADMIN=postgresql+asyncpg://postgres:${POSTGRES_ADMIN_PASSWORD}@postgres:5432/fraud_gov
+      - DATABASE_URL_APP=postgresql+asyncpg://fraud_gov_app_user:${FRAUD_GOV_APP_PASSWORD}@postgres:5432/fraud_gov?pool_size=20&max_overflow=10
+      - DATABASE_URL_ADMIN=postgresql+asyncpg://postgres:${POSTGRES_ADMIN_PASSWORD}@postgres:5432/fraud_gov?pool_size=20&max_overflow=10
       - AUTH0_DOMAIN=${AUTH0_DOMAIN}
       - AUTH0_AUDIENCE=${OPS_ANALYST_AUTH0_AUDIENCE}
       - AUTH0_CLIENT_ID=${OPS_ANALYST_AUTH0_CLIENT_ID}
       - AUTH0_CLIENT_SECRET=${OPS_ANALYST_AUTH0_CLIENT_SECRET}
       - OPS_AGENT_RULE_MANAGEMENT_BASE_URL=http://rule-management:8000/api/v1
+      - OPS_AGENT_ENABLE_LLM_REASONING=${OPS_AGENT_ENABLE_LLM_REASONING}
+      - LLM_PROVIDER=${LLM_PROVIDER}
+      - LLM_BASE_URL=${LLM_BASE_URL}
+      - LLM_API_KEY=${LLM_API_KEY}
+      - LLM_TIMEOUT=${LLM_TIMEOUT}
+      - LLM_MAX_COMPLETION_TOKENS=${LLM_MAX_COMPLETION_TOKENS}
+      - LLM_CONSISTENCY_THRESHOLD=${LLM_CONSISTENCY_THRESHOLD}
+      - LLM_STAGE_TIMEOUT_SECONDS=${LLM_STAGE_TIMEOUT_SECONDS}
+      - PLANNER_MODEL_NAME=${PLANNER_MODEL_NAME}
+      - PLANNER_LLM_ENABLED=${PLANNER_LLM_ENABLED}
+      - LANGGRAPH_INVESTIGATION_TIMEOUT_SECONDS=${LANGGRAPH_INVESTIGATION_TIMEOUT_SECONDS}
+      - LANGGRAPH_TOOL_TIMEOUT_SECONDS=${LANGGRAPH_TOOL_TIMEOUT_SECONDS}
+      - LANGGRAPH_PLANNER_TIMEOUT_SECONDS=${LANGGRAPH_PLANNER_TIMEOUT_SECONDS}
+      - VECTOR_ENABLED=${VECTOR_ENABLED}
+      - VECTOR_API_BASE=${VECTOR_API_BASE}
+      - VECTOR_MODEL_NAME=${VECTOR_MODEL_NAME}
+      - VECTOR_DIMENSION=${VECTOR_DIMENSION}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
+      - OTEL_SERVICE_NAME=ops-analyst-agent
     networks:
       - card-fraud-network
     depends_on:
       postgres:
         condition: service_healthy
+      jaeger:
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8003/api/v1/health"]
       interval: 30s
@@ -269,7 +323,7 @@ services:
       retries: 3
       start_period: 40s
     profiles:
-      - apps
+      - platform
 
   # ---------------------------------------------------------------------------
   # Intelligence Portal (React/Vite + Nginx) - Port 5173
@@ -286,6 +340,14 @@ services:
     container_name: card-fraud-intelligence-portal
     ports:
       - "5173:5173"
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
     networks:
       - card-fraud-network
     depends_on:
@@ -302,11 +364,11 @@ services:
           "http://127.0.0.1:5173/health",
         ]
       interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 5s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
     profiles:
-      - apps
+      - platform
 
   # ---------------------------------------------------------------------------
   # Locust Load Testing - Port 8089
@@ -316,6 +378,14 @@ services:
     container_name: card-fraud-locust
     ports:
       - "8089:8089"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     volumes:
       - ../card-fraud-e2e-load-testing:/locust
     environment:
@@ -325,7 +395,6 @@ services:
       - AUTH0_AUDIENCE=${RULE_ENGINE_AUTH0_AUDIENCE}
       - RULE_ENGINE_AUTH_URL=http://rule-engine-auth:8081
       - RULE_ENGINE_MONITORING_URL=http://rule-engine-monitoring:8081
-      - RULE_ENGINE_URL=http://rule-engine-auth:8081
       - TRANSACTION_MGMT_URL=http://transaction-management:8002
       - RULE_MGMT_URL=http://rule-management:8000
       - OPS_ANALYST_URL=http://ops-analyst-agent:8003

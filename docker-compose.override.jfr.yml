@@ -1,0 +1,23 @@
+# =============================================================================
+# Docker Compose Override - Java Flight Recording (JFR)
+# =============================================================================
+#
+# Enables JFR profiling for rule-engine services.
+#
+# Usage:
+#   doppler run -- uv run platform-up -- --apps --jfr
+#
+# This will create timestamped JFR files at /tmp/flight-<timestamp>.jfr
+# inside each container.
+# =============================================================================
+
+services:
+  rule-engine-auth:
+    environment:
+      # %t expands to timestamp, %p expands to PID
+      - JAVA_JFR_OPTS=-XX:StartFlightRecording=duration=180s,filename=/tmp/flight-%t.jfr,settings=profile
+
+  rule-engine-monitoring:
+    environment:
+      # %t expands to timestamp, %p expands to PID
+      - JAVA_JFR_OPTS=-XX:StartFlightRecording=duration=180s,filename=/tmp/flight-%t.jfr,settings=profile

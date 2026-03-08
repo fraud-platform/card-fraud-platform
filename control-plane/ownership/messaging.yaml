@@ -1,0 +1,33 @@
+# Messaging Ownership (Kafka/Redpanda)
+# Owned by: card-fraud-platform
+# Format: YAML
+---
+topics:
+  fraud.card.decisions.v1:
+    owner: shared
+    producers:
+      - rule-engine-auth
+      - rule-engine-monitoring
+    description: Fraud decision events from rule engines
+    schema: avro/json
+    retention_days: 7
+    partitions: 6
+
+consumer_groups:
+  card-fraud-transaction-management:
+    owner: transaction-management
+    topics:
+      - fraud.card.decisions.v1
+    description: Persists decision events to DB
+
+  card-fraud-transaction-management.dlq:
+    owner: transaction-management
+    topics:
+      - fraud.card.decisions.v1.dlq.local
+    description: Dead letter queue consumer
+
+dlq_pattern:
+  enabled: true
+  main_topic: fraud.card.decisions.v1
+  dlq_topic_template: fraud.card.decisions.v1.dlq.{environment}
+  owner: transaction-management

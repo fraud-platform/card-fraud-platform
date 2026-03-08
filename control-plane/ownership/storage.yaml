@@ -1,0 +1,37 @@
+# Storage Ownership (MinIO/S3)
+# Owned by: card-fraud-platform
+# Format: YAML
+---
+buckets:
+  fraud-gov-artifacts:
+    owner: platform
+    description: Stores compiled rulesets and field registry manifests
+    access:
+      write:
+        - rule-management
+      read:
+        - rule-engine-auth
+        - rule-engine-monitoring
+    endpoint_local: http://minio:9000
+    endpoint_console_local: http://minio:9001
+
+artifact_paths:
+  rulesets:
+    pattern: rulesets/{environment}/{ruleset_key}/v{version}/
+    owner_write: rule-management
+    owner_read:
+      - rule-engine-auth
+      - rule-engine-monitoring
+    examples:
+      - rulesets/local/CARD_AUTH/v1/ruleset.json
+      - rulesets/local/CARD_MONITORING/v1/ruleset.json
+
+  fields:
+    pattern: fields/{environment}/v{version}/
+    owner_write: rule-management
+    owner_read:
+      - rule-engine-auth
+      - rule-engine-monitoring
+    examples:
+      - fields/local/v1/registry.json
+      - fields/local/manifest.json

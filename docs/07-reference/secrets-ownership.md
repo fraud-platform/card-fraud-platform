@@ -1,12 +1,12 @@
 # Secrets Ownership Matrix
 
-This file defines Doppler ownership across all local Card Fraud repos.
+This document defines Doppler ownership across all local Card Fraud repos.
 
 ## Policy (Current)
 
-- Keep **platform-level** secrets for docker-compose orchestration.
-- Keep **service-level** secrets for standalone repo development/tests.
-- Avoid deleting service-level projects until platform + standalone flows are both stable.
+- Keep platform-level secrets for docker-compose orchestration.
+- Keep service-level secrets for standalone repo development/tests.
+- Avoid deleting service-level projects until platform and standalone flows are both stable.
 
 ## Doppler Projects
 
@@ -14,15 +14,16 @@ This file defines Doppler ownership across all local Card Fraud repos.
 |---|---|---|
 | `card-fraud-platform` | Shared infra + app containers via compose | Platform repo |
 | `card-fraud-rule-management` | Standalone RM API dev/tests | Rule Management repo |
-| card-fraud-rule-engine-auth | Standalone AUTH Rule Engine dev/tests | Rule Engine AUTH repo |
-| card-fraud-rule-engine-monitoring | Standalone MONITORING Rule Engine dev/tests | Rule Engine MONITORING repo |
+| `card-fraud-rule-engine-auth` | Standalone AUTH Rule Engine dev/tests | Rule Engine AUTH repo |
+| `card-fraud-rule-engine-monitoring` | Standalone MONITORING Rule Engine dev/tests | Rule Engine MONITORING repo |
 | `card-fraud-transaction-management` | Standalone TM API dev/tests | Transaction Mgmt repo |
 | `card-fraud-intelligence-portal` | Standalone portal dev | Portal repo |
+| `card-fraud-ops-analyst-agent` | Standalone Ops Agent dev/tests | Ops Analyst Agent repo |
 | `card-fraud-e2e-load-testing` | Standalone e2e/load execution | E2E repo |
 
 ## Platform Required Keys (Compose)
 
-Infrastructure and shared app keys that **must** exist in `card-fraud-platform`:
+Infrastructure and shared app keys that must exist in `card-fraud-platform`:
 
 - `POSTGRES_ADMIN_PASSWORD`
 - `FRAUD_GOV_APP_PASSWORD`
@@ -43,6 +44,9 @@ Infrastructure and shared app keys that **must** exist in `card-fraud-platform`:
 - `VITE_AUTH0_DOMAIN`
 - `VITE_AUTH0_CLIENT_ID`
 - `VITE_AUTH0_AUDIENCE`
+- `OPS_ANALYST_AUTH0_AUDIENCE`
+- `OPS_ANALYST_AUTH0_CLIENT_ID`
+- `OPS_ANALYST_AUTH0_CLIENT_SECRET`
 - `APP_ENV` (`local` / `test` / `prod`)
 
 ## Operational Commands
@@ -55,4 +59,4 @@ Infrastructure and shared app keys that **must** exist in `card-fraud-platform`:
 ## Notes
 
 - `APP_ENV` values are standardized as lowercase: `local`, `test`, `prod`.
-- Platform `test`/`prod` now mirror local compose-required keys for local-only workflows.
+- Platform `test`/`prod` mirror local compose-required keys for local-only workflows.

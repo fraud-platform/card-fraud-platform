@@ -1,0 +1,140 @@
+# Platform Adapter Manifest - Reference Example
+#
+# This is a reference implementation showing all possible action domains.
+# Each service repo should copy this file and customize it for their specific actions.
+#
+# DO NOT commit this exact file to service repos - create a customized version instead.
+# This file serves as documentation and template.
+#
+service: <SERVICE_NAME>
+version: "1.0"
+
+entrypoints:
+  service:
+    status:
+      command: [uv, run, service-status]
+      destructive: false
+      timeout_seconds: 10
+      mode: [standalone, suite]
+      description: Get service runtime status
+    health:
+      command: [uv, run, service-health]
+      destructive: false
+      timeout_seconds: 10
+      mode: [standalone, suite]
+      description: Check service health endpoint
+    logs:
+      command: [uv, run, service-logs]
+      destructive: false
+      timeout_seconds: 0
+      mode: [standalone, suite]
+      description: Stream service logs (no timeout - operator controlled)
+
+  db:
+    verify:
+      command: [uv, run, db-verify]
+      destructive: false
+      timeout_seconds: 60
+      mode: [standalone, suite]
+      description: Verify database connectivity and schema
+    reset-schema:
+      command: [uv, run, db-reset-schema]
+      destructive: true
+      timeout_seconds: 300
+      requires_confirmation: true
+      mode: [standalone, suite]
+      description: Drop and recreate all schema objects
+    reset-data:
+      command: [uv, run, db-reset-data]
+      destructive: true
+      timeout_seconds: 300
+      requires_confirmation: true
+      mode: [standalone, suite]
+      description: Truncate all data, preserve schema
+    reset-tables:
+      command: [uv, run, db-reset-tables]
+      destructive: true
+      timeout_seconds: 300
+      requires_confirmation: true
+      mode: [standalone, suite]
+      description: Drop and recreate tables only
+
+  auth:
+    verify:
+      command: [uv, run, auth0-verify]
+      destructive: false
+      timeout_seconds: 60
+      mode: [standalone, suite]
+      description: Verify Auth0 configuration
+
+  messaging:
+    verify:
+      command: [uv, run, kafka-verify]
+      destructive: false
+      timeout_seconds: 60
+      mode: [standalone, suite]
+      description: Verify Kafka/Redpanda connectivity
+    replay-events:
+      command: [uv, run, replay-events]
+      destructive: true
+      timeout_seconds: 600
+      requires_confirmation: true
+      mode: [suite]
+      description: Replay events from topic offset
+    clear-dlq:
+      command: [uv, run, clear-dlq]
+      destructive: true
+      timeout_seconds: 300
+      requires_confirmation: true
+      mode: [suite]
+      description: Clear dead letter queue
+
+  storage:
+    verify:
+      command: [uv, run, storage-verify]
+      destructive: false
+      timeout_seconds: 60
+      mode: [standalone, suite]
+      description: Verify MinIO/S3 connectivity and bucket
+    upload-artifact:
+      command: [uv, run, upload-artifact]
+      destructive: false
+      timeout_seconds: 180
+      mode: [standalone, suite]
+      description: Upload artifact to MinIO
+
+  runtime:
+    verify:
+      command: [uv, run, runtime-verify]
+      destructive: false
+      timeout_seconds: 60
+      mode: [standalone, suite]
+      description: Verify runtime dependencies (Redis, etc.)
+    reload-config:
+      command: [uv, run, reload-config]
+      destructive: false
+      timeout_seconds: 30
+      mode: [suite]
+      description: Reload runtime configuration
+
+  seed:
+    default:
+      command: [uv, run, seed-default]
+      destructive: false
+      timeout_seconds: 180
+      mode: [standalone, suite]
+      description: Seed default data
+
+  verify:
+    preflight:
+      command: [uv, run, preflight]
+      destructive: false
+      timeout_seconds: 120
+      mode: [standalone, suite]
+      description: Run preflight checks before e2e tests
+    readiness:
+      command: [uv, run, readiness]
+      destructive: false
+      timeout_seconds: 60
+      mode: [standalone, suite]
+      description: Verify service is ready for traffic

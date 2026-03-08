@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Shared infrastructure orchestrator for Card Fraud services"
 requires-python = ">=3.12"
 readme = "README.md"
+dependencies = ["pyyaml", "httpx"]
 
 [project.scripts]
 platform-up = "scripts.platform_up:main"
@@ -12,6 +13,8 @@ platform-status = "scripts.platform_status:main"
 platform-reset = "scripts.platform_down:reset"
 platform-sync-secrets = "scripts.sync_shared_secrets:main"
 platform-sync-configs = "scripts.sync_platform_configs:main"
+platform-check = "scripts.platform_check:main"
+platformctl = "scripts.platformctl:main"
 
 [build-system]
 requires = ["hatchling"]

@@ -18,6 +18,7 @@ $repos = @(
     "card-fraud-rule-engine-monitoring"
     "card-fraud-transaction-management"
     "card-fraud-intelligence-portal"
+    "card-fraud-ops-analyst-agent"
 )
 
 $parentDir = Split-Path -Parent $PSScriptRoot

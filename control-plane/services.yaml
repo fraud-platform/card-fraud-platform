@@ -1,0 +1,214 @@
+# Card Fraud Suite Service Registry
+#
+# This is the canonical registry of all services in the card-fraud platform.
+# Each service declares its metadata, health endpoints, auth model, and
+# the adapter manifest that declares its supported actions.
+#
+# Format: YAML
+# Owner: card-fraud-platform
+---
+services:
+  rule-management:
+    repo: ../card-fraud-rule-management
+    runtime: fastapi
+    port: 8000
+    container: card-fraud-rule-management
+    health:
+      kind: http
+      path: /api/v1/health
+      readiness_path: /api/v1/health
+      container_port: 8000
+    auth_model: in-process
+    engine_family: null
+    adapter_manifest: platform-adapter.yaml
+    action_domains:
+      - service
+      - db
+      - auth
+      - seed
+      - storage
+    destructive_actions:
+      - db-reset-schema
+      - db-reset-data
+      - db-reset-tables
+    description: Rule CRUD API for fraud rules management
+
+  rule-engine-auth:
+    repo: ../card-fraud-rule-engine-auth
+    runtime: quarkus
+    port: 8081
+    container: card-fraud-rule-engine-auth
+    health:
+      kind: http
+      path: /v1/evaluate/health
+      readiness_path: /v1/evaluate/health
+      container_port: 8081
+    auth_model: gateway
+    engine_family: rule-engine
+    adapter_manifest: platform-adapter.yaml
+    action_domains:
+      - service
+      - messaging
+      - storage
+      - runtime
+    destructive_actions: []
+    description: AUTH evaluation engine for fraud decisions
+
+  rule-engine-monitoring:
+    repo: ../card-fraud-rule-engine-monitoring
+    runtime: quarkus
+    port: 8082
+    container: card-fraud-rule-engine-monitoring
+    health:
+      kind: http
+      path: /v1/evaluate/health
+      readiness_path: /v1/evaluate/health
+      container_port: 8081
+    auth_model: gateway
+    engine_family: rule-engine
+    adapter_manifest: platform-adapter.yaml
+    action_domains:
+      - service
+      - messaging
+      - storage
+      - runtime
+    destructive_actions: []
+    description: MONITORING evaluation engine for fraud decisions
+
+  transaction-management:
+    repo: ../card-fraud-transaction-management
+    runtime: fastapi
+    port: 8002
+    container: card-fraud-transaction-management
+    health:
+      kind: http
+      path: /api/v1/health
+      readiness_path: /api/v1/health
+      container_port: 8002
+    auth_model: in-process
+    engine_family: null
+    adapter_manifest: platform-adapter.yaml
+    action_domains:
+      - service
+      - db
+      - auth
+      - messaging
+      - seed
+    destructive_actions:
+      - db-reset-data
+      - db-reset-tables
+      - replay-events
+      - clear-dlq
+    description: Transaction processing and fraud decision event handling
+
+  ops-analyst-agent:
+    repo: ../card-fraud-ops-analyst-agent
+    runtime: fastapi
+    port: 8003
+    container: card-fraud-ops-analyst-agent
+    health:
+      kind: http
+      path: /api/v1/health
+      readiness_path: /api/v1/health/ready
+      container_port: 8003
+    auth_model: in-process
+    engine_family: null
+    adapter_manifest: platform-adapter.yaml
+    action_domains:
+      - service
+      - db
+      - auth
+      - seed
+      - verify
+    destructive_actions:
+      - db-reset-tables
+      - db-reset-data
+    description: Autonomous fraud analyst assistant with LLM capabilities
+
+  intelligence-portal:
+    repo: ../card-fraud-intelligence-portal
+    runtime: react-vite-nginx
+    port: 5173
+    container: card-fraud-intelligence-portal
+    health:
+      kind: http
+      path: /health
+      readiness_path: /health
+      container_port: 5173
+    auth_model: spa
+    engine_family: null
+    adapter_manifest: platform-adapter.yaml
+    action_domains:
+      - service
+      - auth
+      - verify
+    destructive_actions: []
+    description: React-based fraud operations UI
+
+  locust:
+    repo: ../card-fraud-e2e-load-testing
+    runtime: locust
+    port: 8089
+    container: card-fraud-locust
+    health:
+      kind: http
+      path: /
+      readiness_path: /
+      container_port: 8089
+    auth_model: none
+    engine_family: null
+    adapter_manifest: platform-adapter.yaml
+    action_domains:
+      - service
+      - verify
+      - seed
+    destructive_actions: []
+    description: Locust load testing harness
+
+# Infrastructure services managed by the platform
+infrastructure:
+  postgres:
+    service: postgresql
+    port: 5432
+    container: card-fraud-postgres
+    managed_by: platform
+
+  redis:
+    service: redis
+    port: 6379
+    container: card-fraud-redis
+    managed_by: platform
+
+  minio:
+    service: minio
+    port: 9000
+    console_port: 9001
+    container: card-fraud-minio
+    managed_by: platform
+
+  redpanda:
+    service: kafka
+    port: 9092
+    console_port: 8083
+    container: card-fraud-redpanda
+    managed_by: platform
+
+  jaeger:
+    service: jaeger
+    port: 16686
+    otlp_grpc: 4317
+    otlp_http: 4318
+    container: card-fraud-jaeger
+    managed_by: platform
+
+  prometheus:
+    service: prometheus
+    port: 9090
+    container: card-fraud-prometheus
+    managed_by: platform
+
+  grafana:
+    service: grafana
+    port: 3000
+    container: card-fraud-grafana
+    managed_by: platform

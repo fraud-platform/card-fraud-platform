@@ -21,6 +21,7 @@ github/
   |-- card-fraud-rule-engine-monitoring   # Quarkus MONITORING engine
 ├── card-fraud-transaction-management/    # FastAPI - transaction processing
 ├── card-fraud-intelligence-portal/       # React - fraud operations UI
+├── card-fraud-ops-analyst-agent/         # FastAPI - autonomous fraud analyst assistant
 └── card-fraud-analytics/                 # (future)
 ```
 
@@ -69,6 +70,7 @@ Add these to the **card-fraud-platform** Doppler project (`local` config):
 | **Infrastructure** | | |
 | `POSTGRES_ADMIN_PASSWORD` | PostgreSQL superuser password | postgres, rule-mgmt, txn-mgmt |
 | `FRAUD_GOV_APP_PASSWORD` | PostgreSQL app user password | rule-mgmt, txn-mgmt |
+| `FRAUD_GOV_ANALYTICS_PASSWORD` | PostgreSQL analytics user password (read-only) | portal, analytics |
 | `MINIO_ROOT_USER` | MinIO root username | minio, minio-init |
 | `MINIO_ROOT_PASSWORD` | MinIO root password | minio, minio-init |
 | `S3_ACCESS_KEY_ID` | S3/MinIO access key | rule-mgmt, rule-engine, txn-mgmt |
@@ -82,11 +84,23 @@ Add these to the **card-fraud-platform** Doppler project (`local` config):
 | `TXN_MGMT_AUTH0_AUDIENCE` | Transaction Management API audience | txn-mgmt |
 | `RULE_ENGINE_AUTH0_CLIENT_ID` | Rule Engine M2M client ID | rule-engine, locust |
 | `RULE_ENGINE_AUTH0_CLIENT_SECRET` | Rule Engine M2M client secret | rule-engine, locust |
+| `OPS_ANALYST_AUTH0_AUDIENCE` | Ops Analyst Agent API audience | ops-analyst-agent |
+| `OPS_ANALYST_AUTH0_CLIENT_ID` | Ops Analyst Agent M2M client ID | ops-analyst-agent |
+| `OPS_ANALYST_AUTH0_CLIENT_SECRET` | Ops Analyst Agent M2M client secret | ops-analyst-agent |
 | **Portal (build args)** | | |
 | `VITE_API_URL` | Backend API URL for portal | portal |
 | `VITE_AUTH0_DOMAIN` | Auth0 domain for SPA | portal |
 | `VITE_AUTH0_CLIENT_ID` | Auth0 SPA client ID | portal |
 | `VITE_AUTH0_AUDIENCE` | Auth0 API audience for SPA | portal |
+| **CORS** | | |
+| `SECURITY_CORS_ALLOWED_ORIGINS` | Allowed CORS origins for all APIs | rule-mgmt, txn-mgmt, ops-analyst-agent |
+| **LLM (Optional)** | | |
+| `LLM_PROVIDER` | LLM provider for ops-analyst reasoning (default: anthropic/claude-haiku-4-5-20251001) | ops-analyst-agent |
+| `LLM_BASE_URL` | Custom LLM API endpoint (optional) | ops-analyst-agent |
+| `LLM_API_KEY` | LLM API key (optional) | ops-analyst-agent |
+| `LLM_TIMEOUT` | LLM request timeout in seconds (default: 60) | ops-analyst-agent |
+| **Environment** | | |
+| `APP_ENV` | Environment identifier (`local` / `test` / `prod`) | all services |
 
 ### Per-Environment Configs
 
@@ -126,15 +140,19 @@ orchestration.
 | `card-fraud-rule-engine-monitoring` | standalone `mvn quarkus:dev` |
 | `card-fraud-transaction-management` | standalone `uvicorn` dev |
 | `card-fraud-intelligence-portal` | standalone `pnpm dev` |
+| `card-fraud-ops-analyst-agent` | standalone `uvicorn` dev |
 
 Individual projects only need secrets for their own service. Shared infra
 secrets (DB passwords, MinIO credentials, Auth0) live in the platform project.
-See `SECRETS_OWNERSHIP.md` for the full ownership matrix.
+See `docs/07-reference/secrets-ownership.md` for the full ownership matrix.
 
 ## Quick Start
 
 ```powershell
 cd card-fraud-platform
+
+# 0. Enable git hooks (pre-push guards for documentation standards)
+git config core.hooksPath .githooks
 
 # 1. Install Python dependencies for platform CLI
 uv sync
@@ -142,14 +160,14 @@ uv sync
 # 2. Configure Doppler (one-time)
 doppler setup    # select: card-fraud-platform / local
 
-# 3. Start all shared infrastructure
+# 3. Start full platform stack (shared infra + apps)
 doppler run -- uv run platform-up
 
 # 4. Verify all services are healthy
 uv run platform-status
 
-# 5. (Optional) Start all application containers
-doppler run -- uv run platform-up -- --apps
+# 5. Run the local quality gate
+uv run platform-check
 ```
 
 ## Architecture
@@ -164,14 +182,18 @@ card-fraud-network (Docker bridge)
 ├── card-fraud-redis             (6379)  ← rule-engine-auth/monitoring (velocity counters)
 ├── card-fraud-redpanda          (9092)  ← rule-engine-auth/monitoring (pub), txn-mgmt (sub)
 ├── card-fraud-redpanda-console  (8083)  ← browser topic management
+├── card-fraud-jaeger            (16686) ← distributed tracing UI
+├── card-fraud-prometheus        (9090)  ← metrics scraping/quer
+└── card-fraud-grafana          (3000)  ← metrics visualization dashboards
 │
-│  Application Containers (--apps profile)
+│  Application Containers (--profile platform)
 ├── card-fraud-rule-management   (8000)  ← FastAPI
   |-- card-fraud-rule-engine-auth       (8081)  <- Quarkus/Java 25
   |-- card-fraud-rule-engine-monitoring (8082)  <- Quarkus/Java 25
 ├── card-fraud-transaction-management (8002)  ← FastAPI
 ├── card-fraud-intelligence-portal (5173)  ← React/Nginx
-└── card-fraud-locust            (8089)  ← load testing profile
+├── card-fraud-ops-analyst-agent (8003)  ← FastAPI
+└── card-fraud-locust            (8089)  ← load-testing profile
 ```
 
 All containers share the `card-fraud-network` bridge network. Within Docker, services
@@ -188,6 +210,9 @@ use `localhost` with the mapped ports.
 | Redis 8.4 | `card-fraud-redis` | 6379 | Velocity counters, hot reload |
 | Redpanda (Kafka) | `card-fraud-redpanda` | 9092 | Decision event streaming |
 | Redpanda Console | `card-fraud-redpanda-console` | 8083 | Web UI for topic management |
+| Jaeger | `card-fraud-jaeger` | 16686 (UI), 4317 (OTLP gRPC), 4318 (OTLP HTTP) | Distributed tracing |
+| Prometheus | `card-fraud-prometheus` | 9090 | Metrics scraping and storage |
+| Grafana | `card-fraud-grafana` | 3000 | Metrics visualization (admin/admin) |
 
 ### What is MinIO / MinIO-init?
 
@@ -218,18 +243,19 @@ consumer groups.
 | Rule Engine MONITORING (Quarkus) | 8082 | 8081 | http://localhost:8082/v1/evaluate/health |
 | Transaction Management API (FastAPI) | 8002 | 8002 | http://localhost:8002/api/v1/health |
 | Intelligence Portal (React/Nginx) | 5173 | 5173 | http://localhost:5173/health |
+| Ops Analyst Agent (FastAPI) | 8003 | 8003 | http://localhost:8003/api/v1/health |
 
 ### Running Applications
 
 ```powershell
-# Start infra + all application containers
-doppler run -- uv run platform-up -- --apps
+# Start full platform stack (infra + applications)
+doppler run -- uv run platform-up
 
-# Or start apps via docker compose directly
-doppler run -- docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile apps up -d
+# Start full platform stack + Locust load testing
+doppler run -- uv run platform-up -- --load-testing
 
 # Build and start (force rebuild)
-doppler run -- docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile apps up -d --build
+doppler run -- docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile platform up -d --build
 ```
 
 ## Platform Commands
@@ -239,11 +265,16 @@ All `up` commands require `doppler run --` prefix. Stop/status commands do not
 
 | Command | Description |
 |---------|-------------|
-| `doppler run -- uv run platform-up` | Start shared infrastructure |
-| `doppler run -- uv run platform-up -- --apps` | Start infrastructure + all application containers |
+| `doppler run -- uv run platform-up` | Start full platform stack (shared infrastructure + applications) |
+| `doppler run -- uv run platform-up -- --load-testing` | Start platform stack + Locust load-testing profile |
 | `uv run platform-down` | Stop all containers (keep data) |
-| `uv run platform-status` | Show status of all containers |
+| `uv run platform-status` | Show suite-aware control-plane service status summary |
+| `uv run platform-status --json` | Emit machine-readable service health summary |
+| `uv run platformctl status` | Show control-plane status from the root control-plane CLI |
+| `uv run platformctl inventory <scope>` | Show ownership-aware inventory (`all`, `services`, `infra`, `redis`, `db`, `messaging`, `storage`, `auth`, `secrets`) |
+| `uv run platformctl registry validate` | Validate service registry and adapter manifest presence |
 | `uv run platform-reset` | Stop and remove all data (fresh start) |
+| `uv run platform-check` | Run the local lint/type/test gate for platform scripts and tests |
 | `uv run platform-sync-configs` | Sync platform Doppler configs (`local` -> `test`,`prod`) |
 
 ## Database
@@ -256,6 +287,13 @@ schema, enabling cross-service data access.
 - `fraud_gov_analytics_user` (read-only) - intelligence-portal, analytics
 
 Schema migrations are managed by each application service.
+
+### Reset Scope Policy
+
+- `db-reset-schema` is high-risk and reserved for `rule-management` only.
+- `db-reset-schema` requires triple guard at runtime: `--yes`, exact `--confirm`, and `--schema-reset-ack RESET_SHARED_SCHEMA`.
+- Other services must expose only `db-reset-tables` and/or `db-reset-data`.
+- `db-reset-tables` must never be implemented by aliasing to schema-drop logic.
 
 ## Verifying Services
 
@@ -282,7 +320,7 @@ docker exec card-fraud-redpanda rpk cluster health
 # Redpanda Console: http://localhost:8083
 ```
 
-After `doppler run -- uv run platform-up -- --apps`:
+After `doppler run -- uv run platform-up`:
 
 ```powershell
 # Test application health endpoints
@@ -291,6 +329,7 @@ curl http://localhost:8081/v1/evaluate/health     # Rule Engine AUTH
 curl http://localhost:8082/v1/evaluate/health     # Rule Engine MONITORING
 curl http://localhost:8002/api/v1/health     # Transaction Management
 curl http://localhost:5173/health             # Intelligence Portal
+curl http://localhost:8003/api/v1/health     # Ops Analyst Agent
 ```
 
 ## Common Workflows
@@ -317,7 +356,7 @@ docker compose -f docker-compose.yml -f docker-compose.apps.yml logs -f rule-man
 
 ```powershell
 doppler run -- docker compose -f docker-compose.yml -f docker-compose.apps.yml \
-    --profile apps up -d --build rule-management
+    --profile platform up -d --build rule-management
 ```
 
 ## Troubleshooting

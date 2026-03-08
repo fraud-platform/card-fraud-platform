@@ -1,0 +1,59 @@
+# Auth Ownership (Auth0)
+# Owned by: card-fraud-platform
+# Format: YAML
+---
+auth_models:
+  in-process:
+    services:
+      - rule-management
+      - transaction-management
+      - ops-analyst-agent
+    description: FastAPI services validating JWT tokens internally
+
+  gateway:
+    services:
+      - rule-engine-auth
+      - rule-engine-monitoring
+    description: Quarkus services using Auth0 as JWT gateway
+
+  spa:
+    services:
+      - intelligence-portal
+    description: React frontend using Auth0 SPA SDK
+
+shared:
+  owner: platform
+  resources:
+    - AUTH0_DOMAIN
+
+service_specific:
+  rule-management:
+    owner: rule-management
+    resources:
+      - RULE_MGMT_AUTH0_AUDIENCE
+
+  rule-engine:
+    owner: rule-engine
+    resources:
+      - RULE_ENGINE_AUTH0_AUDIENCE
+      - RULE_ENGINE_AUTH0_CLIENT_ID
+      - RULE_ENGINE_AUTH0_CLIENT_SECRET
+
+  transaction-management:
+    owner: transaction-management
+    resources:
+      - TXN_MGMT_AUTH0_AUDIENCE
+
+  ops-analyst-agent:
+    owner: ops-analyst-agent
+    resources:
+      - OPS_ANALYST_AUTH0_AUDIENCE
+      - OPS_ANALYST_AUTH0_CLIENT_ID
+      - OPS_ANALYST_AUTH0_CLIENT_SECRET
+
+  intelligence-portal:
+    owner: intelligence-portal
+    resources:
+      - VITE_AUTH0_DOMAIN
+      - VITE_AUTH0_CLIENT_ID
+      - VITE_AUTH0_AUDIENCE

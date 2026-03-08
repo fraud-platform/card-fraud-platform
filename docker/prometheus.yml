@@ -1,0 +1,45 @@
+# Prometheus configuration for Card Fraud Platform
+# Scrapes metrics from all FastAPI services at /api/v1/metrics
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'card-fraud-platform'
+    environment: 'local'
+
+scrape_configs:
+  # Rule Management API (port 8000)
+  - job_name: 'rule-management'
+    static_configs:
+      - targets: ['rule-management:8000']
+    metrics_path: '/metrics'
+
+  # Transaction Management API (port 8002)
+  - job_name: 'transaction-management'
+    static_configs:
+      - targets: ['transaction-management:8002']
+    metrics_path: '/metrics'
+
+  # Ops Analyst Agent (port 8003)
+  - job_name: 'ops-analyst-agent'
+    static_configs:
+      - targets: ['ops-analyst-agent:8003']
+    metrics_path: '/metrics'
+
+  # Rule Engine AUTH (port 8081) - Quarkus metrics
+  - job_name: 'rule-engine-auth'
+    static_configs:
+      - targets: ['rule-engine-auth:8081']
+    metrics_path: '/q/metrics'
+
+  # Rule Engine MONITORING (port 8082) - Quarkus metrics
+  - job_name: 'rule-engine-monitoring'
+    static_configs:
+      - targets: ['rule-engine-monitoring:8081']
+    metrics_path: '/q/metrics'
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

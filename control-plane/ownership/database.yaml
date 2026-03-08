@@ -1,0 +1,97 @@
+# Database Ownership
+# Owned by: card-fraud-platform
+# Format: YAML
+---
+services:
+  rule-management:
+    owner: rule-management
+    schema: fraud_gov
+    tables:
+      - rule_fields
+      - rule_field_versions
+      - rule_field_metadata
+      - rules
+      - rule_versions
+      - ruleset_manifest
+      - field_registry_manifest
+      - rulesets
+      - ruleset_versions
+      - ruleset_version_rules
+      - approvals
+      - audit_log
+    indices:
+      - idx_rule_fields_field_id
+      - idx_rule_fields_field_key
+      - idx_rule_versions_rule_id
+      - idx_rules_ruleset_id
+      - idx_rules_status
+      - idx_ruleset_versions_ruleset_id
+      - idx_audit_logs_entity
+    migration_tool: alembic
+    migration_location: ../card-fraud-rule-management/alembic/
+
+  transaction-management:
+    owner: transaction-management
+    schema: fraud_gov
+    tables:
+      - transactions
+      - transaction_rule_matches
+      - transaction_reviews
+      - analyst_notes
+      - transaction_cases
+      - case_activity_log
+    indices:
+      - idx_transactions_card_id
+      - idx_transactions_merchant_id
+      - idx_transactions_timestamp
+      - idx_transactions_status
+      - idx_transactions_idempotency_key
+      - idx_transaction_rule_matches_transaction_id
+      - idx_transaction_reviews_transaction_id
+      - idx_transaction_reviews_analyst_id
+      - idx_analyst_notes_case_id
+      - idx_transaction_cases_status
+    migration_tool: sql
+    migration_location: ../card-fraud-transaction-management/db/
+
+  ops-analyst-agent:
+    owner: ops-analyst-agent
+    schema: fraud_gov
+    tables:
+      - ops_agent_investigations
+      - ops_agent_investigation_state
+      - ops_agent_tool_execution_log
+      - ops_agent_transaction_embeddings
+      - ops_agent_insights
+      - ops_agent_evidence
+      - ops_agent_recommendations
+      - ops_agent_rule_drafts
+      - ops_agent_audit_log
+    indices:
+      - idx_investigations_status
+      - idx_investigations_transaction_id
+      - idx_investigation_state_investigation_id
+      - idx_tool_execution_investigation_id
+      - idx_tool_execution_timestamp
+      - idx_transaction_embeddings_transaction_id
+      - idx_insights_investigation_id
+    migration_tool: sql
+    migration_location: ../card-fraud-ops-analyst-agent/db/migrations/
+
+reset_scopes:
+  db-reset-schema:
+    description: Drop and recreate shared schema objects (high blast radius across fraud_gov), then re-run migrations
+    supported_by:
+      - rule-management
+  db-reset-data:
+    description: Truncate service-owned data while preserving schema and tables
+    supported_by:
+      - rule-management
+      - transaction-management
+      - ops-analyst-agent
+  db-reset-tables:
+    description: Drop and recreate service-owned tables only (schema preserved)
+    supported_by:
+      - rule-management
+      - transaction-management
+      - ops-analyst-agent

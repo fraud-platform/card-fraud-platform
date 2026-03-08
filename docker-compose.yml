@@ -16,7 +16,8 @@
 #
 # Direct docker compose (requires Doppler for env vars):
 #   doppler run -- docker compose up -d                    # Start infra only
-#   doppler run -- docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile apps up -d
+#   doppler run -- docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile platform up -d
+#   doppler run -- docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile platform --profile load-testing up -d
 #   docker compose down                                    # Stop infra
 #   docker compose down -v                                 # Stop and remove data
 #
@@ -35,8 +36,9 @@ services:
   #   - card-fraud-intelligence-portal (read-only queries)
   #   - card-fraud-analytics (future)
   postgres:
-    image: postgres:18
+    image: pgvector/pgvector:pg18
     container_name: card-fraud-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_DB: fraud_gov
       POSTGRES_USER: postgres
@@ -74,6 +76,7 @@ services:
   minio:
     image: minio/minio:latest
     container_name: card-fraud-minio
+    restart: unless-stopped
     command: server /data --console-address ":9001"
     ports:
       - "9000:9000"
@@ -114,8 +117,8 @@ services:
     command: >
       "mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD &&
        mc mb --ignore-existing local/$$S3_BUCKET_NAME &&
-       mc anonymous set none local/$$S3_BUCKET_NAME || true &&
-       echo 'MinIO initialization complete: bucket $$S3_BUCKET_NAME ready'"
+       mc anonymous set download local/$$S3_BUCKET_NAME &&
+       echo 'MinIO bucket $$S3_BUCKET_NAME initialized' >&2"
     networks:
       - card-fraud-network
     restart: "no"
@@ -129,6 +132,7 @@ services:
   redis:
     image: redis:8.4-alpine
     container_name: card-fraud-redis
+    restart: unless-stopped
     ports:
       - "6379:6379"
     volumes:
@@ -159,6 +163,7 @@ services:
   redpanda:
     image: redpandadata/redpanda:v24.3.11
     container_name: card-fraud-redpanda
+    restart: unless-stopped
     ports:
       - "9092:9092"    # Kafka API (external)
       - "9644:9644"    # Redpanda Admin API
@@ -170,7 +175,7 @@ services:
       resources:
         limits:
           cpus: '1'
-          memory: 2500M
+          memory: 3G
         reservations:
           cpus: '1'
           memory: 2G
@@ -195,22 +200,138 @@ services:
   redpanda-console:
     image: redpandadata/console:v2.3.4
     container_name: card-fraud-redpanda-console
+    restart: unless-stopped
     ports:
       - "8083:8080"
     environment:
       KAFKA_BROKERS: redpanda:29092
       CONNECTORS_ENABLED: "false"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     networks:
       - card-fraud-network
     depends_on:
       redpanda:
         condition: service_healthy
 
+  # ---------------------------------------------------------------------------
+  # Jaeger All-in-One - Distributed tracing backend
+  # ---------------------------------------------------------------------------
+  # Receives OTLP traces from all services; provides the pipeline waterfall UI.
+  # UI:        http://localhost:16686
+  # OTLP gRPC: localhost:4317  (set OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317)
+  # OTLP HTTP: localhost:4318
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    container_name: card-fraud-jaeger
+    restart: unless-stopped
+    ports:
+      - "16686:16686"   # Jaeger UI
+      - "4317:4317"     # OTLP gRPC receiver
+      - "4318:4318"     # OTLP HTTP receiver
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:16686"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - card-fraud-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  # ---------------------------------------------------------------------------
+  # Prometheus - Metrics scraping and storage
+  # ---------------------------------------------------------------------------
+  # Scrapes metrics from all services; provides query API for Grafana.
+  # UI:        http://localhost:9090
+  # Services expose metrics at /api/v1/metrics (FastAPI services)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: card-fraud-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"   # Prometheus UI
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=15d'
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - card-fraud-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # ---------------------------------------------------------------------------
+  # Grafana - Metrics visualization dashboards
+  # ---------------------------------------------------------------------------
+  # Queries Prometheus for metrics; provides pre-built dashboards.
+  # UI:        http://localhost:3000 (admin/admin)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: card-fraud-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"   # Grafana UI
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - card-fraud-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
 volumes:
   postgres_data:
   minio_data:
   redis_data:
   redpanda_data:
+  prometheus_data:
+  grafana_data:
 
 networks:
   card-fraud-network:

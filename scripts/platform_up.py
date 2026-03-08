@@ -1,12 +1,14 @@
 """
-Smart platform startup - only starts containers that aren't already running.
+Start the full Card Fraud platform stack as a single compose project.
 
 Usage:
-    doppler run -- uv run platform-up              # Start all shared infrastructure
-    doppler run -- uv run platform-up -- --apps    # Start infra + application containers
+    doppler run -- uv run platform-up
+    doppler run -- uv run platform-up -- --load-testing
+    doppler run -- uv run platform-up -- --build
+    doppler run -- uv run platform-up -- --force-recreate
 
 All environment variables (secrets, config) are injected by Doppler.
-Run `doppler setup` once in the platform directory to configure.
+Run `doppler setup` once in this directory to configure.
 """
 
 from __future__ import annotations
@@ -14,31 +16,43 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-from pathlib import Path
 
-# Expected infrastructure containers
-INFRA_CONTAINERS = [
-    "card-fraud-postgres",
-    "card-fraud-minio",
-    "card-fraud-redis",
-    "card-fraud-redpanda",
-    "card-fraud-redpanda-console",
-]
-CONFLICT_PRONE_CONTAINERS = INFRA_CONTAINERS + ["card-fraud-minio-init"]
-
-COMPOSE_FILE = str(Path(__file__).parent.parent / "docker-compose.yml")
-APPS_COMPOSE_FILE = str(Path(__file__).parent.parent / "docker-compose.apps.yml")
-COMPOSE_PROJECT = "card-fraud-platform"
+from scripts.constants import (
+    APPS_COMPOSE_FILE,
+    COMPOSE_FILE,
+    COMPOSE_PROJECT,
+    CONFLICT_PRONE_CONTAINERS,
+    JFR_OVERRIDE_COMPOSE_FILE,
+    PLATFORM_PROFILE,
+)
 
 
-def _is_container_running(name: str) -> bool:
-    """Check if a container is running and healthy."""
-    result = subprocess.run(
-        ["docker", "inspect", "--format", "{{.State.Status}}", name],
-        capture_output=True,
-        text=True,
-    )
-    return result.returncode == 0 and result.stdout.strip() == "running"
+def _check_docker_version() -> bool:
+    """Verify Docker Compose v2 is available."""
+    try:
+        result = subprocess.run(
+            ["docker", "compose", "version"],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            print("[ERROR] Docker Compose v2 is required but not found.")
+            print()
+            print("This platform uses 'docker compose' (v2 syntax), not 'docker-compose'.")
+            print("Update Docker Desktop to the latest version or install Docker Compose v2.")
+            return False
+
+        if "Docker Compose version" not in result.stdout:
+            print("[WARN] Unable to verify Docker Compose version format.")
+            print(f"  Output: {result.stdout.strip()}")
+
+        return True
+    except FileNotFoundError:
+        print("[ERROR] Docker is not installed or not in PATH.")
+        print()
+        print("Please install Docker Desktop:")
+        print("  https://www.docker.com/products/docker-desktop")
+        return False
 
 
 def _container_exists(name: str) -> bool:
@@ -73,12 +87,13 @@ def _cleanup_conflicting_containers() -> None:
     """
     Remove stale containers with expected names but from another compose project.
 
-    This prevents "container name already in use" errors when local dev has stale
-    containers created outside this compose project.
+    This prevents "container name already in use" errors when old local containers
+    were created outside this compose project.
     """
     for name in CONFLICT_PRONE_CONTAINERS:
         if not _container_exists(name):
             continue
+
         project = _container_compose_project(name)
         if project and project == COMPOSE_PROJECT:
             continue
@@ -87,28 +102,11 @@ def _cleanup_conflicting_containers() -> None:
             f"[WARN] Found conflicting container '{name}' "
             f"(compose project: '{project or 'unknown'}'). Removing..."
         )
-        subprocess.run(["docker", "rm", "-f", name], check=False)
-
-
-def _get_running_containers() -> dict[str, bool]:
-    """Check which infrastructure containers are already running."""
-    status = {}
-    for name in INFRA_CONTAINERS:
-        status[name] = _is_container_running(name)
-    return status
-
-
-def _print_status(status: dict[str, bool]) -> None:
-    """Print container status table."""
-    print()
-    print("=" * 60)
-    print(f"  {'Container':<35} {'Status':<15}")
-    print("-" * 60)
-    for name, running in status.items():
-        icon = "[OK]" if running else "[--]"
-        state = "running" if running else "stopped"
-        print(f"  {icon} {name:<31} {state}")
-    print("=" * 60)
+        result = subprocess.run(["docker", "rm", "-f", name], check=False)
+        if result.returncode != 0:
+            print(f"[WARN] Failed to remove container '{name}'")
+        else:
+            print(f"[OK] Removed conflicting container '{name}'")
 
 
 def _check_doppler_env() -> bool:
@@ -120,11 +118,11 @@ def _check_doppler_env() -> bool:
         "MINIO_ROOT_PASSWORD",
         "S3_BUCKET_NAME",
     ]
-    missing = [v for v in required if not os.environ.get(v)]
+    missing = [name for name in required if not os.environ.get(name)]
     if missing:
         print("[ERROR] Missing required environment variables:")
-        for v in missing:
-            print(f"  - {v}")
+        for name in missing:
+            print(f"  - {name}")
         print()
         print("Run with Doppler to inject secrets:")
         print("  doppler run -- uv run platform-up")
@@ -134,100 +132,68 @@ def _check_doppler_env() -> bool:
     return True
 
 
-def _start_apps() -> int:
-    """Start application containers when --apps is requested."""
-    print()
-    print("Starting application containers...")
-    apps_cmd = [
-        "docker", "compose",
-        "-f", COMPOSE_FILE,
-        "-f", APPS_COMPOSE_FILE,
-        "-p", "card-fraud-platform",
-        "--profile", "apps",
-        "up", "-d",
-    ]
-    print(f"  > {' '.join(apps_cmd)}")
-    result = subprocess.run(apps_cmd)
-    if result.returncode != 0:
-        print()
-        print("[ERROR] Failed to start application containers.")
-        return result.returncode
-    return 0
+def _compose_up_command() -> list[str]:
+    """Build docker compose command for full platform stack startup."""
+    cmd = ["docker", "compose", "-f", COMPOSE_FILE, "-f", APPS_COMPOSE_FILE]
+
+    if "--jfr" in sys.argv:
+        cmd += ["-f", JFR_OVERRIDE_COMPOSE_FILE]
+
+    cmd += ["-p", COMPOSE_PROJECT, "--profile", PLATFORM_PROFILE]
+
+    if "--load-testing" in sys.argv:
+        cmd += ["--profile", "load-testing"]
+
+    cmd += ["up", "-d"]
+
+    if "--build" in sys.argv:
+        cmd.append("--build")
+    if "--force-recreate" in sys.argv:
+        cmd.append("--force-recreate")
+
+    return cmd
 
 
 def main() -> int:
-    """Start shared infrastructure (smart - skips running containers)."""
-    print("Card Fraud Platform - Starting shared infrastructure...")
+    """Start the full platform stack (infra + apps) as one group."""
+    print("Card Fraud Platform - Starting full platform stack (infra + apps)...")
     print()
+
+    if "--apps" in sys.argv:
+        print("[WARN] '--apps' is deprecated. Apps are started by default now.")
+        print()
+
+    if "--load-testing" in sys.argv:
+        print("[INFO] '--load-testing' enabled; Locust profile will also be started.")
+        print()
+
+    if not _check_docker_version():
+        return 1
 
     if not _check_doppler_env():
         return 1
 
     _cleanup_conflicting_containers()
 
-    # Check current state
-    status = _get_running_containers()
-    running_count = sum(1 for v in status.values() if v)
-    total = len(INFRA_CONTAINERS)
-
-    if running_count == total:
-        print(f"All {total} infrastructure containers already running.")
-        _print_status(status)
-        if "--apps" in sys.argv:
-            apps_rc = _start_apps()
-            if apps_rc != 0:
-                return apps_rc
-            print()
-            print("Infrastructure already running; apps were (re)started.")
-            print("Use 'uv run platform-status' for details.")
-            return 0
-        print()
-        print("Nothing to start. Use 'uv run platform-status' for details.")
-        return 0
-
-    if running_count > 0:
-        print(f"{running_count}/{total} containers already running.")
-        print("Starting remaining containers...")
-    else:
-        print(f"Starting all {total} infrastructure containers...")
-
-    # Start infrastructure
-    print()
-    cmd = [
-        "docker", "compose",
-        "-f", COMPOSE_FILE,
-        "-p", COMPOSE_PROJECT,
-        "up", "-d",
-    ]
+    cmd = _compose_up_command()
     print(f"  > {' '.join(cmd)}")
     result = subprocess.run(cmd)
 
     if result.returncode != 0:
         print()
-        print("[ERROR] Failed to start infrastructure.")
-        return 1
-
-    # Check if --apps flag was passed
-    if "--apps" in sys.argv:
-        apps_rc = _start_apps()
-        if apps_rc != 0:
-            return apps_rc
-
-    # Show final status
-    print()
-    final_status = _get_running_containers()
-    _print_status(final_status)
+        print("[ERROR] Failed to start platform stack.")
+        return result.returncode
 
     print()
-    print("Infrastructure endpoints:")
-    print("  PostgreSQL : localhost:5432 (fraud_gov)")
-    print("  Redis      : localhost:6379")
-    print("  MinIO API  : http://localhost:9000")
-    print("  MinIO UI   : http://localhost:9001")
-    print("  Kafka      : localhost:9092")
-    print("  Redpanda UI: http://localhost:8083")
+    print("Platform stack started.")
+    print("Use 'uv run platform-status' to verify container health.")
+    print("Use '--load-testing' when you want to include the Locust profile.")
     print()
-    print("Credentials are managed by Doppler (card-fraud-platform project).")
+    print("For targeted restarts (still same platform group):")
+    print(
+        "  doppler run -- docker compose -f docker-compose.yml -f docker-compose.apps.yml "
+        "-p card-fraud-platform --profile platform up -d --build <service>"
+    )
     print()
     return 0
 

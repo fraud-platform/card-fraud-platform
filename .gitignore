@@ -53,3 +53,10 @@ STATUS.md
 status.md
 SESSION_HANDOFF.md
 
+# Local-only experimental runtime files
+.claude/
+.env.ollama-qwen-run
+docker-compose.gpt.override.yml
+docker-compose.qwen.override.yml
+control-plane/logs/
+
