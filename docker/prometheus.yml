@@ -27,6 +27,12 @@ scrape_configs:
       - targets: ['ops-analyst-agent:8003']
     metrics_path: '/metrics'
 
+  # MCP Gateway (port 8000 in container; host mapped as 8005)
+  - job_name: 'mcp-gateway'
+    static_configs:
+      - targets: ['mcp-gateway:8000']
+    metrics_path: '/metrics'
+
   # Rule Engine AUTH (port 8081) - Quarkus metrics
   - job_name: 'rule-engine-auth'
     static_configs:

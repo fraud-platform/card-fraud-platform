@@ -326,6 +326,81 @@ services:
       - platform
 
   # ---------------------------------------------------------------------------
+  # MCP Gateway (FastAPI + FastMCP) - Port 8005 -> 8000
+  # ---------------------------------------------------------------------------
+  mcp-gateway:
+    build:
+      context: ../card-fraud-mcp-gateway
+      dockerfile: Dockerfile
+    container_name: card-fraud-mcp-gateway
+    ports:
+      - "8005:8000"
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+    environment:
+      - APP_ENV=local
+      - SECURITY_SKIP_JWT_VALIDATION=true
+      - GATEWAY_PG_DSN=postgresql://postgres:${POSTGRES_ADMIN_PASSWORD}@postgres:5432/fraud_gov
+      - GATEWAY_PG_POOL_MIN=2
+      - GATEWAY_PG_POOL_MAX=10
+      - GATEWAY_PG_MAX_ROWS=500
+      - GATEWAY_PG_ALLOWED_SCHEMAS=fraud_gov,public
+      - GATEWAY_PG_ALLOWED_TABLES=transactions,transaction_cases,transaction_reviews,card_profiles,fraud_rules,velocity_records
+      - GATEWAY_REDIS_URL=redis://redis:6379
+      - GATEWAY_REDIS_MAX_KEYS=100
+      - GATEWAY_REDIS_MAX_VALUE_BYTES=10000
+      - "GATEWAY_REDIS_ALLOWED_PREFIXES=fraud:,session:,rate:"
+      - GATEWAY_KAFKA_BROKERS=redpanda:29092
+      - GATEWAY_KAFKA_MAX_MESSAGES=10
+      - GATEWAY_KAFKA_MAX_PAYLOAD_BYTES=10000
+      - GATEWAY_KAFKA_ALLOWED_TOPICS=fraud.transactions,fraud.decisions,fraud.alerts,fraud.card.decisions.v1,test.fraud.decisions.v1
+      - GATEWAY_KAFKA_ALLOWED_GROUPS=fraud-engine,card-fraud-engine
+      - GATEWAY_S3_ENDPOINT=http://minio:9000
+      - GATEWAY_S3_ACCESS_KEY=${MINIO_ROOT_USER}
+      - GATEWAY_S3_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+      - GATEWAY_S3_REGION=${S3_REGION}
+      - GATEWAY_S3_MAX_OBJECT_BYTES=1000000
+      - GATEWAY_S3_ALLOWED_BUCKETS=${S3_BUCKET_NAME}
+      - GATEWAY_S3_ALLOWED_PREFIXES=${S3_BUCKET_NAME}/
+      - GATEWAY_OPS_TRANSACTIONS_TABLE=transactions
+      - GATEWAY_OPS_CASES_TABLE=transaction_cases
+      - GATEWAY_OPS_DECISIONS_TABLE=transaction_reviews
+      - GATEWAY_OTEL_ENDPOINT=http://jaeger:4317
+      - GATEWAY_OTEL_SERVICE_NAME=card-fraud-mcp-gateway
+      - GATEWAY_RATE_LIMIT_RPM=120
+      - GATEWAY_ENFORCE_ALLOWLISTS=true
+      - "GATEWAY_CORS_ORIGINS=[]"
+      - GATEWAY_AUTH0_DOMAIN=${AUTH0_DOMAIN}
+      - GATEWAY_AUTH0_AUDIENCE=https://card-fraud-mcp-gateway
+    networks:
+      - card-fraud-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      jaeger:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    profiles:
+      - platform
+
+  # ---------------------------------------------------------------------------
   # Intelligence Portal (React/Vite + Nginx) - Port 5173
   # ---------------------------------------------------------------------------
   intelligence-portal:

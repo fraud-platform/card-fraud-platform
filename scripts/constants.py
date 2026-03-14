@@ -52,6 +52,7 @@ ALL_CONTAINERS = {
         ("card-fraud-rule-engine-monitoring", "Rule Engine MONITORING", "8082"),
         ("card-fraud-transaction-management", "Transaction Mgmt API", "8002"),
         ("card-fraud-ops-analyst-agent", "Ops Analyst Agent", "8003"),
+        ("card-fraud-mcp-gateway", "MCP Gateway", "8005"),
         ("card-fraud-intelligence-portal", "Intelligence Portal", "5173"),
     ],
     "Testing": [

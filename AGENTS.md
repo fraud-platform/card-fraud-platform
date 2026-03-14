@@ -69,9 +69,10 @@ uv run platform-check
 | Transaction Management API | `card-fraud-transaction-management` | 8002 | 8002 | ../card-fraud-transaction-management |
 | Intelligence Portal | `card-fraud-intelligence-portal` | 5173 | 5173 | ../card-fraud-intelligence-portal |
 | Ops Analyst Agent | `card-fraud-ops-analyst-agent` | 8003 | 8003 | ../card-fraud-ops-analyst-agent |
+| MCP Gateway | `card-fraud-mcp-gateway` | 8005 | 8000 | ../card-fraud-mcp-gateway |
 | Locust (load testing) | `card-fraud-locust` | 8089 | 8089 | ../card-fraud-e2e-load-testing |
 
-Active sibling repo (runs independently from this compose stack):
+Active sibling repo (now also integrated into platform compose profile):
 
 | Service | Runtime | Purpose |
 |---------|---------|---------|
@@ -93,7 +94,7 @@ Active sibling repo (runs independently from this compose stack):
 | `uv run platform-check` | Run the repo's local lint/type/test gate |
 | `uv run platform-sync-secrets` | Sync shared local secrets across platform/rule-mgmt/txn-mgmt |
 | `doppler run -- python scripts/infra_only.py` | Infra orchestrator (checks status, starts only if down) |
-| `cd ../card-fraud-mcp-gateway; docker compose up -d --build gateway` | Start MCP gateway against shared platform infra |
+| `doppler run -- uv run platform-up` | Start full stack including MCP gateway |
 
 ### E2E Run Guardrail (ops-agent)
 
@@ -135,6 +136,7 @@ card-fraud-network (Docker bridge)
 ├── card-fraud-rule-engine-monitoring (8082)
 ├── card-fraud-transaction-management (8002)
 ├── card-fraud-ops-analyst-agent    (8003)
+├── card-fraud-mcp-gateway          (8005)
 └── card-fraud-intelligence-portal  (5173)
 │
 │  Testing [load-testing profile]
@@ -248,7 +250,7 @@ All Dockerfiles in the platform follow these conventions:
 | 3000 | Grafana (Metrics dashboards) |
 | 5432 | PostgreSQL |
 | 6379 | Redis |
-| 8000-8003 | Backend APIs (FastAPI, Quarkus) |
+| 8000-8005 | Backend APIs (FastAPI, Quarkus, MCP Gateway) |
 | 5173 | Frontend (Intelligence Portal) |
 | 8083 | Redpanda Console |
 | 8089 | Load testing (Locust) |

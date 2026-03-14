@@ -125,6 +125,25 @@ services:
       - db-reset-data
     description: Autonomous fraud analyst assistant with LLM capabilities
 
+  mcp-gateway:
+    repo: ../card-fraud-mcp-gateway
+    runtime: fastapi
+    port: 8005
+    container: card-fraud-mcp-gateway
+    health:
+      kind: http
+      path: /health
+      readiness_path: /ready
+      container_port: 8000
+    auth_model: in-process
+    engine_family: null
+    adapter_manifest: platform-adapter.yaml
+    action_domains:
+      - service
+      - verify
+    destructive_actions: []
+    description: Enterprise MCP gateway over card-fraud platform infrastructure
+
   intelligence-portal:
     repo: ../card-fraud-intelligence-portal
     runtime: react-vite-nginx

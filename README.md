@@ -143,7 +143,7 @@ orchestration.
 | `card-fraud-transaction-management` | standalone `uvicorn` dev |
 | `card-fraud-intelligence-portal` | standalone `pnpm dev` |
 | `card-fraud-ops-analyst-agent` | standalone `uvicorn` dev |
-| `card-fraud-mcp-gateway` | standalone MCP gateway dev/runtime |
+| `card-fraud-mcp-gateway` | platform profile container + standalone dev/runtime |
 
 Individual projects only need secrets for their own service. Shared infra
 secrets (DB passwords, MinIO credentials, Auth0) live in the platform project.
@@ -175,18 +175,15 @@ uv run platform-check
 
 ## MCP Gateway Integration (Sibling Repo)
 
-`card-fraud-mcp-gateway` runs as a sibling runtime and connects to this platform's
-shared infra (`card-fraud-network`, Postgres, Redis, Redpanda, MinIO, Jaeger, Prometheus).
+`card-fraud-mcp-gateway` is now included in the platform profile and runs against this
+platform's shared infra (`card-fraud-network`, Postgres, Redis, Redpanda, MinIO, Jaeger, Prometheus).
 
 Startup order:
 
-1. Start this platform stack first (`doppler run -- uv run platform-up`).
-2. Start the gateway from the sibling repo:
+1. Start this platform stack (`doppler run -- uv run platform-up`) - includes MCP gateway.
+2. Verify MCP health:
 
 ```powershell
-cd ..\card-fraud-mcp-gateway
-$env:POSTGRES_ADMIN_PASSWORD=(docker inspect card-fraud-postgres --format "{{range .Config.Env}}{{println .}}{{end}}" | Select-String '^POSTGRES_PASSWORD=' | ForEach-Object {($_.ToString() -split '=',2)[1]})
-docker compose up -d --build gateway
 curl http://localhost:8005/ready
 ```
 
@@ -220,6 +217,7 @@ card-fraud-network (Docker bridge)
 ├── card-fraud-transaction-management (8002)  ← FastAPI
 ├── card-fraud-intelligence-portal (5173)  ← React/Nginx
 ├── card-fraud-ops-analyst-agent (8003)  ← FastAPI
+├── card-fraud-mcp-gateway       (8005)  ← FastAPI/FastMCP
 └── card-fraud-locust            (8089)  ← load-testing profile
 ```
 
@@ -276,6 +274,7 @@ consumer groups.
 | Transaction Management API (FastAPI) | 8002 | 8002 | http://localhost:8002/api/v1/health |
 | Intelligence Portal (React/Nginx) | 5173 | 5173 | http://localhost:5173/health |
 | Ops Analyst Agent (FastAPI) | 8003 | 8003 | http://localhost:8003/api/v1/health |
+| MCP Gateway (FastAPI/FastMCP) | 8005 | 8000 | http://localhost:8005/health |
 
 ### Running Applications
 
