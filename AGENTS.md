@@ -71,6 +71,12 @@ uv run platform-check
 | Ops Analyst Agent | `card-fraud-ops-analyst-agent` | 8003 | 8003 | ../card-fraud-ops-analyst-agent |
 | Locust (load testing) | `card-fraud-locust` | 8089 | 8089 | ../card-fraud-e2e-load-testing |
 
+Active sibling repo (runs independently from this compose stack):
+
+| Service | Runtime | Purpose |
+|---------|---------|---------|
+| `card-fraud-mcp-gateway` | Python MCP server | Remote MCP surface over platform infra, inventory, and analyst-safe tools |
+
 ## Commands
 
 | Command | Description |
@@ -87,6 +93,7 @@ uv run platform-check
 | `uv run platform-check` | Run the repo's local lint/type/test gate |
 | `uv run platform-sync-secrets` | Sync shared local secrets across platform/rule-mgmt/txn-mgmt |
 | `doppler run -- python scripts/infra_only.py` | Infra orchestrator (checks status, starts only if down) |
+| `cd ../card-fraud-mcp-gateway; docker compose up -d --build gateway` | Start MCP gateway against shared platform infra |
 
 ### E2E Run Guardrail (ops-agent)
 
@@ -279,3 +286,4 @@ github/
 ---
 
 **Last Updated:** 2026-03-08
+

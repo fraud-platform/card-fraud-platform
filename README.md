@@ -16,6 +16,7 @@ All repos should be cloned as siblings in the same parent directory:
 ```
 github/
 ├── card-fraud-platform/                  # THIS REPO - infrastructure orchestrator
+├── card-fraud-mcp-gateway/               # Remote MCP gateway for Codex, Claude Code, and ops workflows
 ├── card-fraud-rule-management/           # FastAPI - rule CRUD & compilation
 ├── card-fraud-rule-engine-auth/          # Quarkus - AUTH evaluation engine
   |-- card-fraud-rule-engine-monitoring   # Quarkus MONITORING engine
@@ -31,6 +32,7 @@ Clone all repos:
 cd C:\Users\kanna\github
 # Clone each repo (replace with your org URL)
 git clone <url>/card-fraud-platform
+git clone <url>/card-fraud-mcp-gateway
 git clone <url>/card-fraud-rule-management
 git clone <url>/card-fraud-rule-engine-auth
 git clone <url>/card-fraud-rule-engine-monitoring
@@ -141,6 +143,7 @@ orchestration.
 | `card-fraud-transaction-management` | standalone `uvicorn` dev |
 | `card-fraud-intelligence-portal` | standalone `pnpm dev` |
 | `card-fraud-ops-analyst-agent` | standalone `uvicorn` dev |
+| `card-fraud-mcp-gateway` | standalone MCP gateway dev/runtime |
 
 Individual projects only need secrets for their own service. Shared infra
 secrets (DB passwords, MinIO credentials, Auth0) live in the platform project.
@@ -168,6 +171,30 @@ uv run platform-status
 
 # 5. Run the local quality gate
 uv run platform-check
+```
+
+## MCP Gateway Integration (Sibling Repo)
+
+`card-fraud-mcp-gateway` runs as a sibling runtime and connects to this platform's
+shared infra (`card-fraud-network`, Postgres, Redis, Redpanda, MinIO, Jaeger, Prometheus).
+
+Startup order:
+
+1. Start this platform stack first (`doppler run -- uv run platform-up`).
+2. Start the gateway from the sibling repo:
+
+```powershell
+cd ..\card-fraud-mcp-gateway
+$env:POSTGRES_ADMIN_PASSWORD=(docker inspect card-fraud-postgres --format "{{range .Config.Env}}{{println .}}{{end}}" | Select-String '^POSTGRES_PASSWORD=' | ForEach-Object {($_.ToString() -split '=',2)[1]})
+docker compose up -d --build gateway
+curl http://localhost:8005/ready
+```
+
+Codex MCP client snippet:
+
+```toml
+[mcp_servers.card-fraud-gateway]
+url = "http://localhost:8005/mcp"
 ```
 
 ## Architecture
@@ -230,6 +257,11 @@ run once; on subsequent starts, `--ignore-existing` skips bucket creation.
 **Redpanda** is a Kafka-compatible event streaming platform. The rule-engine publishes
 fraud decision events to the `fraud.card.decisions.v1` topic. The transaction-management
 service consumes these events for persistence and analyst workflows.
+
+Gateway allowlist contract (default local profile):
+
+- Topics: `fraud.card.decisions.v1`, `test.fraud.decisions.v1`
+- Consumer groups: `fraud-engine`, `card-fraud-engine`
 
 **Redpanda Console** (port 8083) provides a browser UI for viewing topics, messages, and
 consumer groups.
@@ -435,3 +467,4 @@ GitHub Organization: card-fraud
 - Docker builds reference each repo independently
 
 See [AGENTS.md](AGENTS.md) for full agent documentation.
+

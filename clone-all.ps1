@@ -13,6 +13,7 @@ param(
 
 $repos = @(
     "card-fraud-platform"
+    "card-fraud-mcp-gateway"
     "card-fraud-rule-management"
     "card-fraud-rule-engine-auth"
     "card-fraud-rule-engine-monitoring"

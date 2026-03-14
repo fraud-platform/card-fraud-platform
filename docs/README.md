@@ -1,6 +1,8 @@
 # Card Fraud Platform Documentation
 
-Shared Docker Compose orchestrator for local multi-service development and the future control plane for the Card Fraud suite.
+Shared Docker Compose orchestrator for local multi-service development and the control plane for the Card Fraud suite.
+
+Sibling suite component note: `card-fraud-mcp-gateway` owns MCP gateway implementation docs and connects to this platform's shared infra at runtime.
 
 ## Quick Start
 
@@ -27,7 +29,7 @@ High-risk action note: `db-reset-schema` requires `--yes`, exact `--confirm`, an
 
 Prerequisites, first-run onboarding, and environment bootstrap.
 
-- _No published topic file yet._
+- Gateway integration setup is documented in the platform [`README.md`](../README.md) under **MCP Gateway Integration (Sibling Repo)**.
 
 ### `02-development` - Development
 
@@ -94,3 +96,4 @@ ADRs, glossary, and cross-repo reference material.
 
 - `docs/README.md`
 - `docs/codemap.md`
+

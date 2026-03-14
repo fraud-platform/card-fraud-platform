@@ -4,6 +4,8 @@
 
 Shared Docker Compose orchestrator for local multi-service development and the authoritative control-plane design home for the Card Fraud suite.
 
+Sibling integration note: `card-fraud-mcp-gateway` runs from its own repo and binds to this platform's shared infrastructure at runtime.
+
 ## Documentation Layout
 
 - `01-setup/`: Setup
@@ -44,6 +46,7 @@ Key entrypoints:
 - `uv run platform-check`
 - `uv run platform-down`
 - `uv run platform-reset`
+- `cd ../card-fraud-mcp-gateway; docker compose up -d --build gateway`
 - `uv run platformctl action db db-reset-schema rule-management --yes --confirm rule-management:db:db-reset-schema --schema-reset-ack RESET_SHARED_SCHEMA`
 
 ## Platform Modes
