@@ -35,6 +35,7 @@ Infrastructure and shared app keys that must exist in `card-fraud-platform`:
 - `S3_BUCKET_NAME`
 - `S3_REGION`
 - `AUTH0_DOMAIN`
+- `AUTH0_USER_AUDIENCE`
 - `RULE_MGMT_AUTH0_AUDIENCE`
 - `RULE_ENGINE_AUTH0_AUDIENCE`
 - `RULE_ENGINE_AUTH0_CLIENT_ID`
@@ -60,3 +61,6 @@ Infrastructure and shared app keys that must exist in `card-fraud-platform`:
 
 - `APP_ENV` values are standardized as lowercase: `local`, `test`, `prod`.
 - Platform `test`/`prod` mirror local compose-required keys for local-only workflows.
+- `AUTH0_USER_AUDIENCE` is the unified SPA audience for human-user tokens.
+- `VITE_AUTH0_AUDIENCE` must mirror `AUTH0_USER_AUDIENCE`.
+- `RULE_MGMT_AUTH0_AUDIENCE`, `TXN_MGMT_AUTH0_AUDIENCE`, and `OPS_ANALYST_AUTH0_AUDIENCE` remain service-specific M2M audiences.

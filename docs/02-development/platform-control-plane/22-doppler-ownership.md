@@ -43,6 +43,7 @@ These secrets are owned by the platform and used across all services:
 | `S3_BUCKET_NAME` | string | Shared bucket name (`fraud-gov-artifacts`) |
 | `S3_REGION` | string | S3 region (default: `us-east-1`) |
 | `AUTH0_DOMAIN` | string | Auth0 tenant domain |
+| `AUTH0_USER_AUDIENCE` | string | Unified human-user audience for portal tokens |
 | `REDIS_URL` | string | Redis connection URL |
 | `KAFKA_BOOTSTRAP_SERVERS` | string | Kafka/Redpanda bootstrap servers |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | string | OpenTelemetry collector endpoint |
@@ -54,7 +55,7 @@ These secrets are owned by the platform and used across all services:
 
 | Secret | Type | Description |
 |--------|------|-------------|
-| `RULE_MGMT_AUTH0_AUDIENCE` | string | API audience for rule-management |
+| `RULE_MGMT_AUTH0_AUDIENCE` | string | M2M audience for rule-management |
 | `APP_ENV` | string | Environment (local, dev, prod) |
 
 #### rule-engine (shared for AUTH and MONITORING)
@@ -70,7 +71,7 @@ These secrets are owned by the platform and used across all services:
 
 | Secret | Type | Description |
 |--------|------|-------------|
-| `TXN_MGMT_AUTH0_AUDIENCE` | string | API audience for transaction management |
+| `TXN_MGMT_AUTH0_AUDIENCE` | string | M2M audience for transaction management |
 | `KAFKA_CONSUMER_GROUP_ID` | string | Kafka consumer group ID |
 | `KAFKA_DLQ_TOPIC` | string | Dead letter queue topic |
 
@@ -80,14 +81,14 @@ These secrets are owned by the platform and used across all services:
 |--------|------|-------------|
 | `VITE_AUTH0_DOMAIN` | string | Auth0 domain for SPA |
 | `VITE_AUTH0_CLIENT_ID` | string | SPA client ID |
-| `VITE_AUTH0_AUDIENCE` | string | SPA API audience |
+| `VITE_AUTH0_AUDIENCE` | string | SPA human-user audience; mirrors `AUTH0_USER_AUDIENCE` |
 | `VITE_API_URL` | string | Backend API URL |
 
 #### ops-analyst-agent
 
 | Secret | Type | Description |
 |--------|------|-------------|
-| `OPS_ANALYST_AUTH0_AUDIENCE` | string | API audience for ops agent |
+| `OPS_ANALYST_AUTH0_AUDIENCE` | string | M2M audience for ops agent |
 | `OPS_ANALYST_AUTH0_CLIENT_ID` | secret | M2M client ID |
 | `OPS_ANALYST_AUTH0_CLIENT_SECRET` | secret | M2M client secret |
 | `LLM_PROVIDER` | string | LLM provider (openai, anthropic, etc.) |
@@ -118,9 +119,16 @@ Services may duplicate platform-owned secrets for standalone execution:
 # In card-fraud-rule-management Doppler project
 FRAUD_GOV_APP_PASSWORD = <same as platform>
 AUTH0_DOMAIN = <same as platform>
+AUTH0_USER_AUDIENCE = <same as platform>
 ```
 
 This allows services to run standalone without platform orchestration.
+
+Audience rule:
+
+- `AUTH0_USER_AUDIENCE` is platform-owned and shared.
+- Service M2M audience values remain service-owned.
+- `VITE_AUTH0_AUDIENCE` is a portal build arg derived from the platform-owned human-user audience.
 
 ### Disallowed Duplication
 

@@ -9,6 +9,8 @@ Define explicit ownership of Auth0 resources across all services in the card-fra
 This document distinguishes between:
 - **Gateway Auth**: Services using Auth0 as API gateway (JWT validation via Quarkus SmallRye JWT)
 - **In-Process Auth**: Services performing their own JWT validation (FastAPI with python-jose)
+- **Human User Tokens**: SPA-issued tokens for the portal
+- **M2M Tokens**: service-to-service and automation tokens
 
 ---
 
@@ -33,23 +35,23 @@ This document distinguishes between:
 | Resource | Owner | Description |
 |----------|-------|-------------|
 | `AUTH0_DOMAIN` | platform | Auth0 tenant domain (e.g., `dev-xyz.us.auth0.com`) |
-| `AUTH0_AUDIENCE` (shared) | platform | Shared audience values used across services |
+| `AUTH0_USER_AUDIENCE` | platform | Unified audience for all portal human-user tokens |
 
 ### Service-Specific (Service-Owned)
 
 | Service | Resource | Owner | Type |
 |---------|----------|-------|------|
-| rule-management | `RULE_MGMT_AUTH0_AUDIENCE` | rule-management | API audience |
+| rule-management | `RULE_MGMT_AUTH0_AUDIENCE` | rule-management | M2M audience |
 | rule-engine-* | `RULE_ENGINE_AUTH0_AUDIENCE` | rule-engine | API audience |
 | rule-engine-* | `RULE_ENGINE_AUTH0_CLIENT_ID` | rule-engine | M2M client ID |
 | rule-engine-* | `RULE_ENGINE_AUTH0_CLIENT_SECRET` | rule-engine | M2M client secret |
-| transaction-management | `TXN_MGMT_AUTH0_AUDIENCE` | transaction-management | API audience |
-| ops-analyst-agent | `OPS_ANALYST_AUTH0_AUDIENCE` | ops-analyst-agent | API audience |
+| transaction-management | `TXN_MGMT_AUTH0_AUDIENCE` | transaction-management | M2M audience |
+| ops-analyst-agent | `OPS_ANALYST_AUTH0_AUDIENCE` | ops-analyst-agent | M2M audience |
 | ops-analyst-agent | `OPS_ANALYST_AUTH0_CLIENT_ID` | ops-analyst-agent | M2M client ID |
 | ops-analyst-agent | `OPS_ANALYST_AUTH0_CLIENT_SECRET` | ops-analyst-agent | M2M client secret |
 | intelligence-portal | `VITE_AUTH0_DOMAIN` | intelligence-portal | SPA domain (may differ) |
 | intelligence-portal | `VITE_AUTH0_CLIENT_ID` | intelligence-portal | SPA client ID |
-| intelligence-portal | `VITE_AUTH0_AUDIENCE` | intelligence-portal | SPA API audience |
+| intelligence-portal | `VITE_AUTH0_AUDIENCE` | intelligence-portal | SPA user audience; must mirror `AUTH0_USER_AUDIENCE` |
 
 ---
 
@@ -78,10 +80,20 @@ Each backend service exposes an API:
 
 | API | Audience | Owner |
 |-----|----------|-------|
-| fraud-governance-api | `https://fraud-governance-api` | rule-management |
-| fraud-rule-engine-api | `https://fraud-rule-engine-api` | rule-engine |
-| fraud-transaction-mgmt-api | `https://fraud-transaction-mgmt-api` | transaction-management |
-| fraud-ops-analyst-api | `https://fraud-ops-analyst-api` | ops-analyst-agent |
+| fraud-governance-api | `AUTH0_USER_AUDIENCE` | platform-owned human-user audience for portal-facing APIs |
+| fraud-rule-engine-api | `RULE_ENGINE_AUTH0_AUDIENCE` | rule-engine |
+| fraud-rule-management-api | `RULE_MGMT_AUTH0_AUDIENCE` | rule-management M2M |
+| fraud-transaction-management-api | `TXN_MGMT_AUTH0_AUDIENCE` | transaction-management M2M |
+| fraud-ops-analyst-agent-api | `OPS_ANALYST_AUTH0_AUDIENCE` | ops-analyst-agent M2M |
+| card-fraud-mcp-gateway | `GATEWAY_AUTH0_AUDIENCE` | mcp-gateway |
+
+### User vs M2M Audience Policy
+
+- Human users in `card-fraud-intelligence-portal` request exactly one audience: `AUTH0_USER_AUDIENCE`.
+- Portal-facing backends accept the human-user audience for browser-originated requests.
+- Backend M2M clients continue to use their own service-specific audiences.
+- Auth0 Actions that inject user roles into access tokens must namespace human roles under `AUTH0_USER_AUDIENCE + "/roles"`.
+- Do not require the SPA to mint one token per backend audience.
 
 ---
 
@@ -89,7 +101,13 @@ Each backend service exposes an API:
 
 ### rule-management, transaction-management, ops-analyst-agent
 
-These FastAPI services validate JWT tokens in-process:
+These FastAPI services validate JWT tokens in-process.
+
+Current platform policy for portal-facing services:
+
+- Validate issuer against `AUTH0_DOMAIN`.
+- Accept the unified human-user audience for browser-originated requests.
+- Continue to accept service-specific M2M audiences where that service still participates in service-to-service flows.
 
 ```python
 # Example: FastAPI JWT validation
@@ -105,7 +123,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         payload = jwt.decode(
             token,
             key=get_jwks(AUTH0_DOMAIN),
-            audience=AUTH0_AUDIENCE,
+            audience=AUTH0_USER_AUDIENCE,
             issuer=f"https://{AUTH0_DOMAIN}/"
         )
         return payload
@@ -115,7 +133,8 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 
 **Required Environment Variables**:
 - `AUTH0_DOMAIN`
-- `AUTH0_AUDIENCE` (service-specific)
+- `AUTH0_USER_AUDIENCE` (for portal human-user tokens)
+- service-specific M2M audience variable as needed by that service
 
 ---
 
@@ -156,7 +175,7 @@ const auth0 = await createAuth0Client({
   clientId: import.meta.env.VITE_AUTH0_CLIENT_ID,
   authorizationParams: {
     audience: import.meta.env.VITE_AUTH0_AUDIENCE,
-    redirect_uri: window.location.origin
+    redirect_uri: `${window.location.origin}/callback`
   }
 });
 ```
@@ -164,7 +183,7 @@ const auth0 = await createAuth0Client({
 **Required Environment Variables**:
 - `VITE_AUTH0_DOMAIN`
 - `VITE_AUTH0_CLIENT_ID`
-- `VITE_AUTH0_AUDIENCE`
+- `VITE_AUTH0_AUDIENCE` (must equal `AUTH0_USER_AUDIENCE`)
 
 ---
 
@@ -185,6 +204,15 @@ auth:
 ```
 
 ---
+
+## Migration Guidance
+
+Short-term migration target:
+
+1. Platform owns the canonical audience model and setup guidance.
+2. Service repos remove duplicated platform-level Auth0 setup guidance over time.
+3. Portal-facing backends migrate from single-audience validation to explicit user-plus-M2M audience handling.
+4. Service repos may keep runtime-specific verification and troubleshooting notes, but not conflicting ownership models.
 
 ## Future Considerations
 

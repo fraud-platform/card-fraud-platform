@@ -4,6 +4,9 @@ Shared Docker Compose orchestrator for local multi-service development and the c
 
 Sibling suite component note: `card-fraud-mcp-gateway` owns MCP gateway implementation docs and connects to this platform's shared infra at runtime.
 
+Auth0 note: this repo is the canonical source for suite-level Auth0 ownership,
+audience naming, and platform setup conventions.
+
 ## Quick Start
 
 ```powershell

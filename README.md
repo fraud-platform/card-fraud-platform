@@ -81,19 +81,20 @@ Add these to the **card-fraud-platform** Doppler project (`local` config):
 | `S3_REGION` | S3 region | rule-mgmt, rule-engine, txn-mgmt |
 | **Auth0** | | |
 | `AUTH0_DOMAIN` | Auth0 tenant domain | all services |
-| `RULE_MGMT_AUTH0_AUDIENCE` | Rule Management API audience | rule-mgmt |
+| `AUTH0_USER_AUDIENCE` | Unified human-user audience for SPA tokens | portal-facing backends |
+| `RULE_MGMT_AUTH0_AUDIENCE` | Rule Management M2M audience | rule-mgmt |
 | `RULE_ENGINE_AUTH0_AUDIENCE` | Rule Engine API audience | rule-engine, locust |
-| `TXN_MGMT_AUTH0_AUDIENCE` | Transaction Management API audience | txn-mgmt |
+| `TXN_MGMT_AUTH0_AUDIENCE` | Transaction Management M2M audience | txn-mgmt |
 | `RULE_ENGINE_AUTH0_CLIENT_ID` | Rule Engine M2M client ID | rule-engine, locust |
 | `RULE_ENGINE_AUTH0_CLIENT_SECRET` | Rule Engine M2M client secret | rule-engine, locust |
-| `OPS_ANALYST_AUTH0_AUDIENCE` | Ops Analyst Agent API audience | ops-analyst-agent |
+| `OPS_ANALYST_AUTH0_AUDIENCE` | Ops Analyst Agent M2M audience | ops-analyst-agent |
 | `OPS_ANALYST_AUTH0_CLIENT_ID` | Ops Analyst Agent M2M client ID | ops-analyst-agent |
 | `OPS_ANALYST_AUTH0_CLIENT_SECRET` | Ops Analyst Agent M2M client secret | ops-analyst-agent |
 | **Portal (build args)** | | |
 | `VITE_API_URL` | Backend API URL for portal | portal |
 | `VITE_AUTH0_DOMAIN` | Auth0 domain for SPA | portal |
 | `VITE_AUTH0_CLIENT_ID` | Auth0 SPA client ID | portal |
-| `VITE_AUTH0_AUDIENCE` | Auth0 API audience for SPA | portal |
+| `VITE_AUTH0_AUDIENCE` | Auth0 human-user audience for SPA (`AUTH0_USER_AUDIENCE`) | portal |
 | **CORS** | | |
 | `SECURITY_CORS_ALLOWED_ORIGINS` | Allowed CORS origins for all APIs | rule-mgmt, txn-mgmt, ops-analyst-agent |
 | **LLM (Optional)** | | |
@@ -147,7 +148,37 @@ orchestration.
 
 Individual projects only need secrets for their own service. Shared infra
 secrets (DB passwords, MinIO credentials, Auth0) live in the platform project.
+Platform is also the source of truth for the suite Auth0 model:
+
+- Human user tokens: one SPA audience, `AUTH0_USER_AUDIENCE`.
+- M2M tokens: one audience per backend/service integration.
+- The portal requests only the unified human-user audience.
+- Portal-facing backends must accept the unified human-user audience in addition to any service M2M audience they use internally.
+
 See `docs/07-reference/secrets-ownership.md` for the full ownership matrix.
+
+## Auth0 Ownership Model
+
+The platform repo owns the suite-level Auth0 contract and setup guidance.
+Service repos may keep runtime integration notes, but the canonical ownership,
+environment naming, and migration guidance live here.
+
+Audience model:
+
+| Token Type | Audience | Used By |
+|------------|----------|---------|
+| Human user (SPA) | `AUTH0_USER_AUDIENCE` | `card-fraud-intelligence-portal` -> portal-facing APIs |
+| Rule Management M2M | `RULE_MGMT_AUTH0_AUDIENCE` | service/service and standalone tooling |
+| Rule Engine M2M | `RULE_ENGINE_AUTH0_AUDIENCE` | rule-engine services, locust |
+| Transaction Management M2M | `TXN_MGMT_AUTH0_AUDIENCE` | service/service and standalone tooling |
+| Ops Analyst M2M | `OPS_ANALYST_AUTH0_AUDIENCE` | ops-analyst-agent service/service use |
+| MCP Gateway | `GATEWAY_AUTH0_AUDIENCE` | MCP clients |
+
+Current migration rule:
+
+- `VITE_AUTH0_AUDIENCE` should be set from `AUTH0_USER_AUDIENCE`.
+- Do not model separate SPA audiences per backend.
+- Do not reuse service M2M audiences as the platform-wide human-user audience.
 
 ## Quick Start
 

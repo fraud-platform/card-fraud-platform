@@ -33,7 +33,7 @@ Examples:
 - shared bucket names
 - shared Redis/Kafka/OTEL/CORS topology values where centralized
 - shared Auth0 domain metadata used across the suite
-- shared audience or client metadata only when the same value is explicitly consumed by multiple services in suite mode
+- shared audience metadata only when the same value is explicitly consumed by multiple services in suite mode, such as `AUTH0_USER_AUDIENCE`
 - shared observability routing values such as a suite-level `SENTRY_DSN` only when deliberately centralized
 
 Platform ownership means:
@@ -65,6 +65,7 @@ Allowed duplication:
 - shared connection values duplicated in a service Doppler project for standalone execution
 - shared host/port values when the service needs them locally outside compose
 - Auth0 metadata duplicated where a service must validate or configure itself independently
+- platform-owned `AUTH0_USER_AUDIENCE` duplicated only when a standalone service must validate portal-issued human-user tokens
 
 Disallowed duplication:
 
@@ -80,6 +81,7 @@ Disallowed duplication:
 | Shared MinIO/S3 local runtime creds | Yes | Only duplicate for standalone use |
 | Shared Kafka/Redis local topology | Yes | Only duplicate for standalone use |
 | Shared Auth0 domain metadata | Yes | May duplicate if needed locally |
+| Shared human-user Auth0 audience (`AUTH0_USER_AUDIENCE`) | Yes | Only duplicate if standalone validation requires it |
 | Service-specific Auth0 client secrets | No | Yes |
 | LLM/runtime provider secrets | No | Yes |
 | Service-only feature flags | No | Yes |
@@ -116,6 +118,7 @@ Examples:
 - `S3_SECRET_ACCESS_KEY`
 - `S3_BUCKET_NAME`
 - `AUTH0_DOMAIN`
+- `AUTH0_USER_AUDIENCE`
 
 ### Service-Specific Names
 

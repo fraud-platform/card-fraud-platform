@@ -25,6 +25,7 @@ shared:
   owner: platform
   resources:
     - AUTH0_DOMAIN
+    - AUTH0_USER_AUDIENCE
 
 service_specific:
   rule-management:
@@ -57,3 +58,30 @@ service_specific:
       - VITE_AUTH0_DOMAIN
       - VITE_AUTH0_CLIENT_ID
       - VITE_AUTH0_AUDIENCE
+
+audience_model:
+  human_user:
+    owner: platform
+    audience_env: AUTH0_USER_AUDIENCE
+    consumers:
+      - intelligence-portal
+      - rule-management
+      - transaction-management
+      - ops-analyst-agent
+    notes:
+      - Single SPA audience for portal-issued human-user tokens.
+      - VITE_AUTH0_AUDIENCE must mirror AUTH0_USER_AUDIENCE.
+  m2m:
+    notes:
+      - Service-to-service and automation clients keep service-specific audiences.
+    services:
+      rule-management:
+        audience_env: RULE_MGMT_AUTH0_AUDIENCE
+      rule-engine:
+        audience_env: RULE_ENGINE_AUTH0_AUDIENCE
+      transaction-management:
+        audience_env: TXN_MGMT_AUTH0_AUDIENCE
+      ops-analyst-agent:
+        audience_env: OPS_ANALYST_AUTH0_AUDIENCE
+      mcp-gateway:
+        audience_env: GATEWAY_AUTH0_AUDIENCE

@@ -52,6 +52,7 @@ services:
       - S3_FORCE_PATH_STYLE=true
       - AUTH0_DOMAIN=${AUTH0_DOMAIN}
       - AUTH0_AUDIENCE=${RULE_MGMT_AUTH0_AUDIENCE}
+      - AUTH0_USER_AUDIENCE=${AUTH0_USER_AUDIENCE}
       # OpenTelemetry - connect to platform Jaeger
       - OTEL_ENABLED=true
       - OTEL_SERVICE_NAME=fraud-governance-api
@@ -245,6 +246,7 @@ services:
       - S3_REGION=${S3_REGION}
       - AUTH0_DOMAIN=${AUTH0_DOMAIN}
       - AUTH0_AUDIENCE=${TXN_MGMT_AUTH0_AUDIENCE}
+      - AUTH0_USER_AUDIENCE=${AUTH0_USER_AUDIENCE}
     networks:
       - card-fraud-network
     depends_on:
@@ -287,6 +289,7 @@ services:
       - DATABASE_URL_ADMIN=postgresql+asyncpg://postgres:${POSTGRES_ADMIN_PASSWORD}@postgres:5432/fraud_gov?pool_size=20&max_overflow=10
       - AUTH0_DOMAIN=${AUTH0_DOMAIN}
       - AUTH0_AUDIENCE=${OPS_ANALYST_AUTH0_AUDIENCE}
+      - AUTH0_USER_AUDIENCE=${AUTH0_USER_AUDIENCE}
       - AUTH0_CLIENT_ID=${OPS_ANALYST_AUTH0_CLIENT_ID}
       - AUTH0_CLIENT_SECRET=${OPS_ANALYST_AUTH0_CLIENT_SECRET}
       - OPS_AGENT_RULE_MANAGEMENT_BASE_URL=http://rule-management:8000/api/v1

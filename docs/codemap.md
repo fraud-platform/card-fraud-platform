@@ -25,6 +25,7 @@ The control-plane design set defines how this repo evolves from an infra orchest
 - cross-service inventory and observability
 - governed admin actions
 - shared secret and docs ownership
+- shared Auth0 ownership and audience conventions
 - platform admin UX boundaries
 
 Key entrypoints:
@@ -36,6 +37,13 @@ Key entrypoints:
 - `docs/02-development/platform-control-plane/16-phase-2-platform-internals-design.md`
 - `docs/02-development/platform-control-plane/23-phase-implementation-validation.md`
 - `docs/07-reference/secrets-ownership.md`
+
+Auth0 source of truth:
+
+- `docs/02-development/platform-control-plane/21-auth0-ownership.md`
+- `docs/02-development/platform-control-plane/22-doppler-ownership.md`
+- `control-plane/ownership/auth.yaml`
+- `control-plane/ownership/secrets.yaml`
 
 ## Local Commands
 

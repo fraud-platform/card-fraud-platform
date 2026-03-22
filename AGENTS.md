@@ -1,6 +1,8 @@
 # AGENTS.md - Card Fraud Platform
 
 This is the **shared infrastructure orchestrator** for the Card Fraud suite of services.
+It is also the canonical control-plane repo for shared setup and ownership rules,
+including suite-level Auth0 and Doppler conventions.
 
 > **IMPORTANT:** This project uses **Doppler** as the secrets manager.
 > Local startup requires Doppler-injected secrets.
@@ -19,6 +21,7 @@ This is the **shared infrastructure orchestrator** for the Card Fraud suite of s
 - Keep health endpoint references consistent with current service contracts (for APIs, prefer `/api/v1/health`).
 - Preserve shared local port conventions from `card-fraud-platform` unless an explicit migration is planned.
 - Before handoff, run the repo's local lint/type/test gate and report the exact command + result.
+- Keep platform-level Auth0 ownership, audience naming, and setup guidance centralized in this repo. Service repos may document runtime integration details, but they should not redefine the suite Auth0 contract.
 
 ## Quick Start
 
