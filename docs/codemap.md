@@ -26,6 +26,7 @@ The control-plane design set defines how this repo evolves from an infra orchest
 - governed admin actions
 - shared secret and docs ownership
 - shared Auth0 ownership and audience conventions
+- Local Test Client ownership and role-token reuse policy
 - platform admin UX boundaries
 
 Key entrypoints:
@@ -56,6 +57,8 @@ Auth0 source of truth:
 - `uv run platform-reset`
 - `cd ../card-fraud-mcp-gateway; docker compose up -d --build gateway`
 - `uv run platformctl action db db-reset-schema rule-management --yes --confirm rule-management:db:db-reset-schema --schema-reset-ack RESET_SHARED_SCHEMA`
+
+Local compose note: `card-fraud-rule-engine-monitoring` is started with `APP_RULESET_STARTUP_LOAD_ENABLED=false` so the `load-test` profile does not abort startup when the monitoring ruleset artifact is absent from MinIO.
 
 ## Platform Modes
 

@@ -27,6 +27,21 @@ shared:
     - AUTH0_DOMAIN
     - AUTH0_USER_AUDIENCE
 
+local_e2e:
+  owner: rule-management
+  application: Local Test Client
+  environment: local-and-test-only
+  resources:
+    - AUTH0_TEST_CLIENT_ID
+    - AUTH0_TEST_CLIENT_SECRET
+  consumers:
+    - card-fraud-rule-management role-token helpers
+    - card-fraud-intelligence-portal real-Auth0 E2E fixtures
+  notes:
+    - Use the Username-Password-Authentication connection and password-realm grant.
+    - Keep the client secret in Doppler; never place it in source, compose, or an env file.
+    - Reuse one token per role and worker/process; do not log in once per test.
+
 service_specific:
   rule-management:
     owner: rule-management

@@ -50,6 +50,13 @@ Infrastructure and shared app keys that must exist in `card-fraud-platform`:
 - `OPS_ANALYST_AUTH0_CLIENT_SECRET`
 - `APP_ENV` (`local` / `test` / `prod`)
 
+Local role-test credentials are intentionally excluded from the platform
+compose key set. Rule-management owns `AUTH0_TEST_CLIENT_ID`,
+`AUTH0_TEST_CLIENT_SECRET`, and canonical `TEST_USER_*_PASSWORD` values in its
+Doppler project. The portal may receive only its E2E aliases
+`E2E_AUTH0_CLIENT_ID` and `E2E_AUTH0_CLIENT_SECRET`; runtime containers do not
+need these credentials.
+
 ## Operational Commands
 
 - Sync shared local DB/object-storage secrets across platform + RM + TM:

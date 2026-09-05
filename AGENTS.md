@@ -14,6 +14,7 @@ including suite-level Auth0 and Doppler conventions.
 - Secrets: Doppler-only workflows. Do not create or commit `.env` files.
 - Commands: use repository wrappers from `pyproject.toml` or `package.json`; avoid ad-hoc commands.
 - Git hooks: run `git config core.hooksPath .githooks` after clone to enable pre-push guards.
+- Git workflow: work only on local `main`; do not create branches or linked worktrees. Push only `origin/main`. The pre-push guard covers Codex and Claude sessions; agents require `CARD_FRAUD_ALLOW_GIT_PUSH=1` for an explicitly requested push.
 - Docs publishing: keep only curated docs in `docs/01-setup` through `docs/07-reference`, plus `docs/README.md` and `docs/codemap.md`.
 - Docs naming: use lowercase kebab-case for docs files. Exceptions: `README.md`, `codemap.md`, and generated contract files.
 - Never commit docs/planning artifacts named `todo`, `status`, `archive`, or session notes.
@@ -22,6 +23,8 @@ including suite-level Auth0 and Doppler conventions.
 - Preserve shared local port conventions from `card-fraud-platform` unless an explicit migration is planned.
 - Before handoff, run the repo's local lint/type/test gate and report the exact command + result.
 - Keep platform-level Auth0 ownership, audience naming, and setup guidance centralized in this repo. Service repos may document runtime integration details, but they should not redefine the suite Auth0 contract.
+- The development-only `Local Test Client` is owned by rule-management for role-specific password-realm testing. Its ID/secret and canonical role-user passwords stay in Doppler; it is not part of platform compose and must not be used by service runtime containers.
+- Keep Auth0 Suspicious IP Throttling and Brute-force Protection enabled. For local testing, allowlist the current egress IP in the tenant protections instead of disabling them.
 
 ## Quick Start
 
@@ -98,6 +101,8 @@ Active sibling repo (now also integrated into platform compose profile):
 | `uv run platform-sync-secrets` | Sync shared local secrets across platform/rule-mgmt/txn-mgmt |
 | `doppler run -- python scripts/infra_only.py` | Infra orchestrator (checks status, starts only if down) |
 | `doppler run -- uv run platform-up` | Start full stack including MCP gateway |
+
+Note: `card-fraud-rule-engine-monitoring` uses the `load-test` profile, so local compose must override `APP_RULESET_STARTUP_LOAD_ENABLED=false` to keep startup from failing when the monitoring ruleset artifact is missing from MinIO.
 
 ### E2E Run Guardrail (ops-agent)
 

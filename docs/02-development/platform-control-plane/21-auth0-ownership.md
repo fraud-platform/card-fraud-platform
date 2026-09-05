@@ -37,6 +37,29 @@ This document distinguishes between:
 | `AUTH0_DOMAIN` | platform | Auth0 tenant domain (e.g., `dev-xyz.us.auth0.com`) |
 | `AUTH0_USER_AUDIENCE` | platform | Unified audience for all portal human-user tokens |
 
+### Local E2E Test Client (Development/Test Only)
+
+The confidential `Local Test Client` is a separate Auth0 application for
+role-specific local/password-realm tests. Rule-management owns it; the portal
+consumes the same logical client through aliases. It is not a service M2M
+client, browser SPA client, or platform-compose runtime dependency.
+
+| Resource | Owner | Consumers |
+|----------|-------|-----------|
+| `AUTH0_TEST_CLIENT_ID` | rule-management | rule-management helpers, portal E2E |
+| `AUTH0_TEST_CLIENT_SECRET` | rule-management | rule-management helpers, portal E2E |
+
+Required Auth0 grants are Password, Password Realm, and Client Credentials;
+the client uses `Client Secret (Post)`, the
+`Username-Password-Authentication` connection, and the unified audience
+`https://fraud-governance-api`. Keep its credentials and canonical role-user
+passwords in Doppler only.
+
+The portal and rule-management helpers reuse one password-realm token per role
+and worker/process. They must not perform a browser/password login for every
+test. Keep Suspicious IP Throttling and Brute-force Protection enabled and
+allowlist the local egress IP in development when necessary.
+
 ### Service-Specific (Service-Owned)
 
 | Service | Resource | Owner | Type |

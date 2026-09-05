@@ -56,6 +56,9 @@ These secrets are owned by the platform and used across all services:
 | Secret | Type | Description |
 |--------|------|-------------|
 | `RULE_MGMT_AUTH0_AUDIENCE` | string | M2M audience for rule-management |
+| `AUTH0_TEST_CLIENT_ID` | secret | Development-only Local Test Client ID for role-token helpers |
+| `AUTH0_TEST_CLIENT_SECRET` | secret | Development-only Local Test Client secret; never exposed to the browser |
+| `TEST_USER_*_PASSWORD` | secret | Canonical role-user passwords for local/password-realm tests |
 | `APP_ENV` | string | Environment (local, dev, prod) |
 
 #### rule-engine (shared for AUTH and MONITORING)
@@ -82,6 +85,8 @@ These secrets are owned by the platform and used across all services:
 | `VITE_AUTH0_DOMAIN` | string | Auth0 domain for SPA |
 | `VITE_AUTH0_CLIENT_ID` | string | SPA client ID |
 | `VITE_AUTH0_AUDIENCE` | string | SPA human-user audience; mirrors `AUTH0_USER_AUDIENCE` |
+| `E2E_AUTH0_CLIENT_ID` | secret | Alias for the rule-management-owned Local Test Client ID |
+| `E2E_AUTH0_CLIENT_SECRET` | secret | Alias for the rule-management-owned Local Test Client secret |
 | `VITE_API_URL` | string | Backend API URL |
 
 #### ops-analyst-agent
@@ -129,6 +134,12 @@ Audience rule:
 - `AUTH0_USER_AUDIENCE` is platform-owned and shared.
 - Service M2M audience values remain service-owned.
 - `VITE_AUTH0_AUDIENCE` is a portal build arg derived from the platform-owned human-user audience.
+
+Local test-auth rule:
+
+- `AUTH0_TEST_CLIENT_ID` and `AUTH0_TEST_CLIENT_SECRET` are owned by rule-management and are local/test only.
+- The portal may consume them through its `E2E_AUTH0_CLIENT_ID` and `E2E_AUTH0_CLIENT_SECRET` aliases.
+- No runtime service container or platform compose service should receive these credentials.
 
 ### Disallowed Duplication
 

@@ -180,6 +180,12 @@ Current migration rule:
 - Do not model separate SPA audiences per backend.
 - Do not reuse service M2M audiences as the platform-wide human-user audience.
 
+Local role testing is a separate boundary: rule-management owns the
+development `Local Test Client` and stores its ID/secret in the
+`card-fraud-rule-management` Doppler project. The portal consumes aliases
+`E2E_AUTH0_CLIENT_ID` and `E2E_AUTH0_CLIENT_SECRET`; neither value belongs in
+the platform compose project or runtime service containers.
+
 ## Quick Start
 
 ```powershell
@@ -203,6 +209,8 @@ uv run platform-status
 # 5. Run the local quality gate
 uv run platform-check
 ```
+
+Note: `card-fraud-rule-engine-monitoring` runs under the `load-test` Quarkus profile, so local compose overrides `APP_RULESET_STARTUP_LOAD_ENABLED=false` to prevent startup from failing if its monitoring ruleset artifact is missing from MinIO.
 
 ## MCP Gateway Integration (Sibling Repo)
 

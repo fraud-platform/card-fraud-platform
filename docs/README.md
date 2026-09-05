@@ -6,6 +6,10 @@ Sibling suite component note: `card-fraud-mcp-gateway` owns MCP gateway implemen
 
 Auth0 note: this repo is the canonical source for suite-level Auth0 ownership,
 audience naming, and platform setup conventions.
+Local test-auth note: rule-management owns the development-only `Local Test Client`
+and its `AUTH0_TEST_CLIENT_ID`/`AUTH0_TEST_CLIENT_SECRET` Doppler values. The
+portal and rule-management use role-specific password-realm tokens with bounded
+reuse; platform compose and runtime services do not perform those logins.
 
 ## Quick Start
 
@@ -15,6 +19,8 @@ doppler run -- uv run platform-up
 uv run platform-status
 uv run platform-check
 ```
+
+Note: local compose overrides `APP_RULESET_STARTUP_LOAD_ENABLED=false` for `card-fraud-rule-engine-monitoring`, because its `load-test` profile otherwise re-enables startup ruleset loading and can fail on a missing MinIO artifact.
 
 High-risk action note: `db-reset-schema` requires `--yes`, exact `--confirm`, and `--schema-reset-ack RESET_SHARED_SCHEMA`.
 
