@@ -20,6 +20,13 @@ uv run platform-status
 uv run platform-check
 ```
 
+The normal `platform-up` path captures the ops-agent project's local Doppler
+JSON config in memory and forwards only its allowlisted
+LLM/planner/vector/reasoning keys to Compose. Secret values are never printed;
+missing required keys stop startup with names-only diagnostics. See the
+[Doppler ownership](02-development/platform-control-plane/22-doppler-ownership.md)
+reference for the ownership boundary.
+
 Note: local compose overrides `APP_RULESET_STARTUP_LOAD_ENABLED=false` for `card-fraud-rule-engine-monitoring`, because its `load-test` profile otherwise re-enables startup ruleset loading and can fail on a missing MinIO artifact.
 
 High-risk action note: `db-reset-schema` requires `--yes`, exact `--confirm`, and `--schema-reset-ack RESET_SHARED_SCHEMA`.

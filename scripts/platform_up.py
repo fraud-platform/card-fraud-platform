@@ -6,6 +6,7 @@ Usage:
     doppler run -- uv run platform-up -- --load-testing
     doppler run -- uv run platform-up -- --build
     doppler run -- uv run platform-up -- --force-recreate
+    doppler run -- uv run platform-up -- --build --service ops-analyst-agent
 
 All environment variables (secrets, config) are injected by Doppler.
 Run `doppler setup` once in this directory to configure.
@@ -13,6 +14,7 @@ Run `doppler setup` once in this directory to configure.
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -26,6 +28,66 @@ from scripts.constants import (
     PLATFORM_PROFILE,
 )
 
+OPS_AGENT_DOPPLER_PROJECT = "card-fraud-ops-analyst-agent"
+OPS_AGENT_DOPPLER_CONFIG = "local"
+
+# Keep this list deliberately narrow.  Platform-owned runtime/auth/database
+# values continue to come from the outer `doppler run` invocation.
+OPS_AGENT_ENV_ALLOWLIST = frozenset(
+    {
+        "OPS_AGENT_ENABLE_LLM_REASONING",
+        "LLM_PROVIDER",
+        "LLM_BASE_URL",
+        "LLM_API_KEY",
+        "LLM_TIMEOUT",
+        "LLM_MAX_RETRIES",
+        "LLM_PROMPT_GUARD_ENABLED",
+        "LLM_MAX_PROMPT_TOKENS",
+        "LLM_MAX_COMPLETION_TOKENS",
+        "LLM_CONSISTENCY_THRESHOLD",
+        "LLM_STAGE_TIMEOUT_SECONDS",
+        "LLM_ROUTINE_MODEL",
+        "LLM_ESCALATION_MODEL",
+        "LLM_REASONING_EFFORT",
+        "PLANNER_MODEL_NAME",
+        "PLANNER_LLM_ENABLED",
+        "PLANNER_TEMPERATURE",
+        "PLANNER_MAX_TOKENS",
+        "PLANNER_TIMEOUT_SECONDS",
+        "PLANNER_EVIDENCE_SELECTION_ENABLED",
+        "LANGGRAPH_INVESTIGATION_TIMEOUT_SECONDS",
+        "LANGGRAPH_TOOL_TIMEOUT_SECONDS",
+        "LANGGRAPH_PLANNER_TIMEOUT_SECONDS",
+        "VECTOR_ENABLED",
+        "VECTOR_API_BASE",
+        "VECTOR_API_KEY",
+        "VECTOR_MODEL_NAME",
+        "VECTOR_DIMENSION",
+        "VECTOR_SEARCH_LIMIT",
+        "VECTOR_TIME_WINDOW_DAYS",
+        "VECTOR_MIN_SIMILARITY",
+        "VECTOR_REQUEST_TIMEOUT_S",
+        "VECTOR_RETRY_ATTEMPTS",
+        "VECTOR_RETRY_BACKOFF_SECONDS",
+    }
+)
+
+OPS_AGENT_REQUIRED_ENV_KEYS = frozenset(
+    {
+        "OPS_AGENT_ENABLE_LLM_REASONING",
+        "LLM_PROVIDER",
+        "LLM_BASE_URL",
+        "LLM_API_KEY",
+        "PLANNER_MODEL_NAME",
+        "PLANNER_LLM_ENABLED",
+        "PLANNER_EVIDENCE_SELECTION_ENABLED",
+        "VECTOR_ENABLED",
+        "VECTOR_API_BASE",
+        "VECTOR_MODEL_NAME",
+        "VECTOR_DIMENSION",
+    }
+)
+
 
 def _check_docker_version() -> bool:
     """Verify Docker Compose v2 is available."""
@@ -34,12 +96,17 @@ def _check_docker_version() -> bool:
             ["docker", "compose", "version"],
             capture_output=True,
             text=True,
+            check=False,
         )
         if result.returncode != 0:
             print("[ERROR] Docker Compose v2 is required but not found.")
             print()
-            print("This platform uses 'docker compose' (v2 syntax), not 'docker-compose'.")
-            print("Update Docker Desktop to the latest version or install Docker Compose v2.")
+            print(
+                "This platform uses 'docker compose' (v2 syntax), not 'docker-compose'."
+            )
+            print(
+                "Update Docker Desktop to the latest version or install Docker Compose v2."
+            )
             return False
 
         if "Docker Compose version" not in result.stdout:
@@ -61,6 +128,7 @@ def _container_exists(name: str) -> bool:
         ["docker", "inspect", name],
         capture_output=True,
         text=True,
+        check=False,
     )
     return result.returncode == 0
 
@@ -72,11 +140,12 @@ def _container_compose_project(name: str) -> str:
             "docker",
             "inspect",
             "--format",
-            "{{ index .Config.Labels \"com.docker.compose.project\" }}",
+            '{{ index .Config.Labels "com.docker.compose.project" }}',
             name,
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     if result.returncode != 0:
         return ""
@@ -132,6 +201,66 @@ def _check_doppler_env() -> bool:
     return True
 
 
+def _load_ops_agent_env_overlay() -> dict[str, str] | None:
+    """Load the ops-agent-owned runtime config without exposing secret values."""
+    try:
+        result = subprocess.run(
+            [
+                "doppler",
+                "secrets",
+                "download",
+                "--project",
+                OPS_AGENT_DOPPLER_PROJECT,
+                "--config",
+                OPS_AGENT_DOPPLER_CONFIG,
+                "--no-file",
+                "--format",
+                "json",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        print("[ERROR] Doppler CLI is required to load the ops-agent config.")
+        return None
+    if result.returncode != 0:
+        print(
+            "[ERROR] Unable to load the ops-agent Doppler overlay "
+            f"({OPS_AGENT_DOPPLER_PROJECT}/{OPS_AGENT_DOPPLER_CONFIG})."
+        )
+        print("  Ensure Doppler is installed and you can read the local config.")
+        return None
+
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        print("[ERROR] Ops-agent Doppler overlay was not valid JSON.")
+        return None
+
+    if not isinstance(payload, dict):
+        print("[ERROR] Ops-agent Doppler overlay must be a JSON object.")
+        return None
+
+    overlay = {
+        name: value
+        for name, value in payload.items()
+        if name in OPS_AGENT_ENV_ALLOWLIST and isinstance(value, str) and value
+    }
+    missing = sorted(OPS_AGENT_REQUIRED_ENV_KEYS - overlay.keys())
+    if missing:
+        print("[ERROR] Ops-agent Doppler config is missing required keys:")
+        for name in missing:
+            print(f"  - {name}")
+        print(
+            f"  Project/config: {OPS_AGENT_DOPPLER_PROJECT}/{OPS_AGENT_DOPPLER_CONFIG}"
+        )
+        print("  Secret values are not displayed.")
+        return None
+
+    return overlay
+
+
 def _compose_up_command() -> list[str]:
     """Build docker compose command for full platform stack startup."""
     cmd = ["docker", "compose", "-f", COMPOSE_FILE, "-f", APPS_COMPOSE_FILE]
@@ -150,6 +279,12 @@ def _compose_up_command() -> list[str]:
         cmd.append("--build")
     if "--force-recreate" in sys.argv:
         cmd.append("--force-recreate")
+
+    if "--service" in sys.argv:
+        service_index = sys.argv.index("--service") + 1
+        if service_index >= len(sys.argv) or sys.argv[service_index].startswith("--"):
+            raise ValueError("--service requires a Compose service name")
+        cmd.append(sys.argv[service_index])
 
     return cmd
 
@@ -173,11 +308,21 @@ def main() -> int:
     if not _check_doppler_env():
         return 1
 
+    ops_agent_env = _load_ops_agent_env_overlay()
+    if ops_agent_env is None:
+        return 1
+
     _cleanup_conflicting_containers()
 
-    cmd = _compose_up_command()
+    try:
+        cmd = _compose_up_command()
+    except ValueError as exc:
+        print(f"[ERROR] {exc}")
+        return 1
     print(f"  > {' '.join(cmd)}")
-    result = subprocess.run(cmd)
+    compose_env = os.environ.copy()
+    compose_env.update(ops_agent_env)
+    result = subprocess.run(cmd, env=compose_env, check=False)
 
     if result.returncode != 0:
         print()
@@ -190,10 +335,7 @@ def main() -> int:
     print("Use '--load-testing' when you want to include the Locust profile.")
     print()
     print("For targeted restarts (still same platform group):")
-    print(
-        "  doppler run -- docker compose -f docker-compose.yml -f docker-compose.apps.yml "
-        "-p card-fraud-platform --profile platform up -d --build <service>"
-    )
+    print("  doppler run -- uv run platform-up -- --build --service <service>")
     print()
     return 0
 

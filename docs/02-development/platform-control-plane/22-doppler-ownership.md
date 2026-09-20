@@ -99,12 +99,30 @@ These secrets are owned by the platform and used across all services:
 | `LLM_PROVIDER` | string | LLM provider (openai, anthropic, etc.) |
 | `LLM_API_KEY` | secret | LLM API key |
 | `LLM_BASE_URL` | string | LLM base URL (for local models) |
-| `LLM_MODEL_NAME` | string | Primary model name |
 | `PLANNER_MODEL_NAME` | string | Planner model name |
+| `PLANNER_EVIDENCE_SELECTION_ENABLED` | boolean | Enable optional planner evidence selection |
 | `VECTOR_ENABLED` | boolean | Enable vector search |
 | `VECTOR_API_BASE` | string | Vector DB API base URL |
 | `VECTOR_MODEL_NAME` | string | Embedding model name |
 | `VECTOR_DIMENSION` | int | Embedding dimension |
+
+The suite overlay also forwards the active non-secret tuning keys for these
+same groups: LLM retry/prompt/reasoning settings, planner temperature/token/
+timeout settings, LangGraph step/timeouts, and vector search/retry/timeout
+settings. `VECTOR_API_KEY` is allowlisted as an optional service-owned secret;
+the ops-agent normally inherits the cloud key from `LLM_API_KEY`.
+
+### Suite-mode ops-agent overlay
+
+`uv run platform-up` remains invoked under the platform project's Doppler
+context, then reads `card-fraud-ops-analyst-agent/local` with
+`doppler secrets download --no-file --format json`. The startup script captures
+that response in memory and overlays only the ops-owned LLM, planner, vector,
+and reasoning allowlist into the Compose subprocess. It never prints values or
+passes unrelated ops-agent secrets through the platform environment. Missing
+required allowlist keys fail startup with names-only diagnostics. This keeps
+the service-owned model/provider source of truth in the ops-agent project while
+the platform project remains authoritative for shared runtime secrets.
 
 #### e2e-load-testing
 

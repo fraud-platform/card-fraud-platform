@@ -58,6 +58,14 @@ Auth0 source of truth:
 - `cd ../card-fraud-mcp-gateway; docker compose up -d --build gateway`
 - `uv run platformctl action db db-reset-schema rule-management --yes --confirm rule-management:db:db-reset-schema --schema-reset-ack RESET_SHARED_SCHEMA`
 
+`platform-up` is the canonical suite startup path. It reads the ops-agent
+`local` Doppler project in memory and passes only its allowlisted
+LLM/planner/vector/reasoning configuration to Compose; values are never
+printed and missing required keys fail startup. See
+`docs/02-development/platform-control-plane/22-doppler-ownership.md`.
+Use `--service <compose-service>` with `platform-up` for a targeted rebuild
+without bypassing this overlay.
+
 Local compose note: `card-fraud-rule-engine-monitoring` is started with `APP_RULESET_STARTUP_LOAD_ENABLED=false` so the `load-test` profile does not abort startup when the monitoring ruleset artifact is absent from MinIO.
 
 ## Platform Modes

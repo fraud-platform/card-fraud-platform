@@ -102,9 +102,9 @@ Add these to the **card-fraud-platform** Doppler project (`local` config):
 | **CORS** | | |
 | `SECURITY_CORS_ALLOWED_ORIGINS` | Allowed CORS origins for all APIs | rule-mgmt, txn-mgmt, ops-analyst-agent |
 | **LLM (Optional)** | | |
-| `LLM_PROVIDER` | LLM provider for ops-analyst reasoning (default: anthropic/claude-haiku-4-5-20251001) | ops-analyst-agent |
-| `LLM_BASE_URL` | Custom LLM API endpoint (optional) | ops-analyst-agent |
-| `LLM_API_KEY` | LLM API key (optional) | ops-analyst-agent |
+| `LLM_PROVIDER` | Ops-owned LLM provider (`openai/gpt-5-mini` locally) | ops-analyst-agent Doppler |
+| `LLM_BASE_URL` | Ops-owned OpenAI API endpoint | ops-analyst-agent Doppler |
+| `LLM_API_KEY` | Ops-owned OpenAI API key | ops-analyst-agent Doppler |
 | `LLM_TIMEOUT` | LLM request timeout in seconds (default: 60) | ops-analyst-agent |
 | **Environment** | | |
 | `APP_ENV` | Environment identifier (`local` / `test` / `prod`) | all services |
@@ -212,6 +212,18 @@ uv run platform-status
 
 # 5. Run the local quality gate
 uv run platform-check
+```
+
+`platform-up` automatically reads the `card-fraud-ops-analyst-agent/local`
+Doppler config and overlays only the documented LLM, planner, vector, and
+reasoning keys for the ops-agent Compose service. Values are captured in
+memory and are never printed. Missing required keys stop startup with
+names-only diagnostics; no manual environment merge is needed.
+
+For a targeted rebuild while preserving the same secure overlay path:
+
+```powershell
+doppler run -- uv run platform-up -- --build --service ops-analyst-agent
 ```
 
 Note: `card-fraud-rule-engine-monitoring` runs under the `load-test` Quarkus profile, so local compose overrides `APP_RULESET_STARTUP_LOAD_ENABLED=false` to prevent startup from failing if its monitoring ruleset artifact is missing from MinIO.

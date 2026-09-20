@@ -51,6 +51,16 @@ uv run platform-status
 uv run platform-check
 ```
 
+`platform-up` securely overlays the allowlisted LLM/planner/vector/reasoning
+configuration from the `card-fraud-ops-analyst-agent` Doppler `local` config
+into the Compose subprocess. It captures the Doppler JSON response without
+printing values and fails with missing key names when required ops-agent
+configuration is absent. Do not add a second manual environment merge to the
+normal startup workflow; ownership is documented in
+`docs/02-development/platform-control-plane/22-doppler-ownership.md`.
+Targeted rebuilds use the same path, for example
+`doppler run -- uv run platform-up -- --build --service ops-analyst-agent`.
+
 ## What This Project Manages
 
 ### Shared Infrastructure (docker-compose.yml)
