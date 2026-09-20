@@ -45,6 +45,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD}
       FRAUD_GOV_APP_PASSWORD: ${FRAUD_GOV_APP_PASSWORD}
       FRAUD_GOV_ANALYTICS_PASSWORD: ${FRAUD_GOV_ANALYTICS_PASSWORD}
+      FRAUD_GOV_MCP_READER_PASSWORD: ${FRAUD_GOV_MCP_READER_PASSWORD:?Doppler must provide the dedicated MCP reader password}
     ports:
       - "5432:5432"
     volumes:
@@ -113,11 +114,21 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       S3_BUCKET_NAME: ${S3_BUCKET_NAME}
+      FRAUD_GOV_MCP_S3_ACCESS_KEY: ${FRAUD_GOV_MCP_S3_ACCESS_KEY:?Doppler must provide the dedicated MCP S3 access key}
+      FRAUD_GOV_MCP_S3_SECRET_KEY: ${FRAUD_GOV_MCP_S3_SECRET_KEY:?Doppler must provide the dedicated MCP S3 secret key}
+      MCP_READER_POLICY_FILE: /config/mcp-reader-policy.json
+    volumes:
+      - ./docker/minio/mcp-reader-policy.json:/config/mcp-reader-policy.json:ro
     entrypoint: ["sh", "-c"]
     command: >
-      "mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD &&
+      "test $$S3_BUCKET_NAME = fraud-gov-artifacts &&
+       mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD &&
        mc mb --ignore-existing local/$$S3_BUCKET_NAME &&
-       mc anonymous set download local/$$S3_BUCKET_NAME &&
+       (mc admin user info local $$FRAUD_GOV_MCP_S3_ACCESS_KEY >/dev/null 2>&1 ||
+        mc admin user add local $$FRAUD_GOV_MCP_S3_ACCESS_KEY $$FRAUD_GOV_MCP_S3_SECRET_KEY) &&
+       (mc admin policy info local mcp-reader >/dev/null 2>&1 ||
+        mc admin policy create local mcp-reader $$MCP_READER_POLICY_FILE) &&
+       mc admin policy attach local mcp-reader --user $$FRAUD_GOV_MCP_S3_ACCESS_KEY &&
        echo 'MinIO bucket $$S3_BUCKET_NAME initialized' >&2"
     networks:
       - card-fraud-network
@@ -267,6 +278,8 @@ services:
     volumes:
       - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
+    secrets:
+      - metrics_token
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
@@ -337,3 +350,7 @@ networks:
   card-fraud-network:
     name: card-fraud-network
     driver: bridge
+
+secrets:
+  metrics_token:
+    environment: METRICS_TOKEN

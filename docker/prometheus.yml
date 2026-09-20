@@ -14,18 +14,21 @@ scrape_configs:
     static_configs:
       - targets: ['rule-management:8000']
     metrics_path: '/metrics'
+    bearer_token_file: '/run/secrets/metrics_token'
 
   # Transaction Management API (port 8002)
   - job_name: 'transaction-management'
     static_configs:
       - targets: ['transaction-management:8002']
     metrics_path: '/metrics'
+    bearer_token_file: '/run/secrets/metrics_token'
 
   # Ops Analyst Agent (port 8003)
   - job_name: 'ops-analyst-agent'
     static_configs:
       - targets: ['ops-analyst-agent:8003']
-    metrics_path: '/metrics'
+    metrics_path: '/api/v1/metrics'
+    bearer_token_file: '/run/secrets/metrics_token'
 
   # MCP Gateway (port 8000 in container; host mapped as 8005)
   - job_name: 'mcp-gateway'

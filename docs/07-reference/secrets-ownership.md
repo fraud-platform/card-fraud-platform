@@ -28,12 +28,15 @@ Infrastructure and shared app keys that must exist in `card-fraud-platform`:
 - `POSTGRES_ADMIN_PASSWORD`
 - `FRAUD_GOV_APP_PASSWORD`
 - `FRAUD_GOV_ANALYTICS_PASSWORD`
+- `FRAUD_GOV_MCP_READER_PASSWORD` (dedicated read-only MCP gateway database role)
 - `MINIO_ROOT_USER`
 - `MINIO_ROOT_PASSWORD`
 - `S3_ACCESS_KEY_ID`
 - `S3_SECRET_ACCESS_KEY`
 - `S3_BUCKET_NAME`
 - `S3_REGION`
+- `FRAUD_GOV_MCP_S3_ACCESS_KEY` (dedicated read-only MCP gateway S3 principal)
+- `FRAUD_GOV_MCP_S3_SECRET_KEY`
 - `AUTH0_DOMAIN`
 - `AUTH0_USER_AUDIENCE`
 - `RULE_MGMT_AUTH0_AUDIENCE`
@@ -59,8 +62,9 @@ need these credentials.
 
 ## Operational Commands
 
-- Sync shared local DB/object-storage secrets across platform + RM + TM:
-  - `uv run platform-sync-secrets -- --source-project card-fraud-rule-management --config local`
+- Sync shared local DB/object-storage secrets across platform + RM + TM, and provision
+  the MCP gateway's dedicated reader credentials plus Auth0 bootstrap prerequisites:
+  - `uv run platform-sync-secrets --source-project card-fraud-rule-management --config local`
 - Sync platform configs from `local` to `test`/`prod`:
   - `uv run platform-sync-configs`
 

@@ -29,7 +29,7 @@ github/
 Clone all repos:
 
 ```powershell
-cd C:\Users\kanna\github
+cd <workspace-root>
 # Clone each repo (replace with your org URL)
 git clone <url>/card-fraud-platform
 git clone <url>/card-fraud-mcp-gateway
@@ -78,6 +78,10 @@ Add these to the **card-fraud-platform** Doppler project (`local` config):
 | `S3_ACCESS_KEY_ID` | S3/MinIO access key | rule-mgmt, rule-engine, txn-mgmt |
 | `S3_SECRET_ACCESS_KEY` | S3/MinIO secret key | rule-mgmt, rule-engine, txn-mgmt |
 | `S3_BUCKET_NAME` | S3 bucket name | minio-init, rule-mgmt, rule-engine, txn-mgmt |
+| `FRAUD_GOV_MCP_READER_PASSWORD` | Dedicated read-only PostgreSQL role password for MCP gateway | postgres, mcp-gateway |
+| `FRAUD_GOV_MCP_S3_ACCESS_KEY` | Dedicated read-only MinIO access key for MCP gateway | minio-init, mcp-gateway |
+| `FRAUD_GOV_MCP_S3_SECRET_KEY` | Dedicated read-only MinIO secret key for MCP gateway | minio-init, mcp-gateway |
+| `METRICS_TOKEN` | Shared local Prometheus scrape token (injected as a Docker secret) | FastAPI services, Prometheus |
 | `S3_REGION` | S3 region | rule-mgmt, rule-engine, txn-mgmt |
 | **Auth0** | | |
 | `AUTH0_DOMAIN` | Auth0 tenant domain | all services |

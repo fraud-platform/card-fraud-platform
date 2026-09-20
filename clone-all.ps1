@@ -2,7 +2,7 @@
 # Clone all Card Fraud Platform repositories as siblings
 #
 # Usage:
-#   cd C:\Users\kanna\github\card-fraud-platform
+#   cd $env:WORKSPACE_ROOT\card-fraud-platform
 #   .\clone-all.ps1
 #   .\clone-all.ps1 -OrgUrl "https://github.com/your-org"
 #   .\clone-all.ps1 -OrgUrl "git@github.com:your-org"

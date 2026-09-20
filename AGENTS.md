@@ -12,6 +12,7 @@ including suite-level Auth0 and Doppler conventions.
 ## Cross-Repo Agent Standards
 
 - Secrets: Doppler-only workflows. Do not create or commit `.env` files.
+- Prometheus scraping uses the Doppler-managed `METRICS_TOKEN` as a Docker secret; do not hardcode it in scrape configuration or compose files.
 - Commands: use repository wrappers from `pyproject.toml` or `package.json`; avoid ad-hoc commands.
 - Git hooks: run `git config core.hooksPath .githooks` after clone to enable pre-push guards.
 - Git workflow: work only on local `main`; do not create branches or linked worktrees. Push only `origin/main`. The pre-push guard covers Codex and Claude sessions; agents require `CARD_FRAUD_ALLOW_GIT_PUSH=1` for an explicitly requested push.
@@ -33,7 +34,7 @@ including suite-level Auth0 and Doppler conventions.
 winget install --id Astral-sh.uv
 
 # 2. Clone this repo alongside the service repos
-cd C:\Users\kanna\github
+cd <workspace-root>
 git clone <platform-repo-url> card-fraud-platform
 
 # 3. Install dependencies
@@ -110,8 +111,8 @@ For ops-agent e2e runs, run infra and guardrails in one session before any matri
 
 ```powershell
 doppler run --project card-fraud-platform --config local -- `
-  docker compose -f C:/Users/kanna/github/card-fraud-platform/docker-compose.yml `
-  -f C:/Users/kanna/github/card-fraud-platform/docker-compose.apps.yml `
+  docker compose -f ./docker-compose.yml `
+  -f ./docker-compose.apps.yml `
   --profile platform up -d --build transaction-management ops-analyst-agent
 ```
 
@@ -119,7 +120,7 @@ Validation steps:
 
 - `curl http://localhost:8003/api/v1/health/ready`
 - `curl http://localhost:8002/api/v1/health`
-- `(cd C:/Users/kanna/github/card-fraud-ops-analyst-agent; doppler run --config local -- uv run pytest tests/e2e/test_scenarios.py::test_llm_chat_preflight -v)`
+- `(cd ../card-fraud-ops-analyst-agent; doppler run --config local -- uv run pytest tests/e2e/test_scenarios.py::test_llm_chat_preflight -v)`
 
 Do not skip the preflight before running `run_e2e_matrix_detailed.py` or full `tests/e2e/test_scenarios.py`.
 

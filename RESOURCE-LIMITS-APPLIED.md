@@ -180,7 +180,7 @@ deploy:
 ### Option A: Full Rebuild (Recommended for Clean Start)
 
 ```bash
-cd /c/Users/kanna/github/card-fraud-platform
+cd "$WORKSPACE_ROOT/card-fraud-platform"
 
 # 1. Stop all containers
 doppler run -- docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile apps down
@@ -199,7 +199,7 @@ watch -n 2 'docker ps --format "table {{.Names}}\t{{.Status}}"'
 ### Option B: Quick Restart (If No Code Changes)
 
 ```bash
-cd /c/Users/kanna/github/card-fraud-platform
+cd "$WORKSPACE_ROOT/card-fraud-platform"
 
 # Just restart (Docker applies new resource limits)
 doppler run -- docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile apps restart
@@ -276,7 +276,7 @@ ps aux | grep java
 ### Run Baseline Test
 
 ```bash
-cd /c/Users/kanna/github/card-fraud-e2e-load-testing
+cd "$WORKSPACE_ROOT/card-fraud-e2e-load-testing"
 
 # Start fresh load test
 uv run lt-run \

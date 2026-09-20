@@ -42,13 +42,13 @@ The design must also preserve:
 
 Use a single top-level metadata area in the platform repo:
 
-- `C:/Users/kanna/github/card-fraud-platform/control-plane/services.yaml`
-- `C:/Users/kanna/github/card-fraud-platform/control-plane/ownership/database.yaml`
-- `C:/Users/kanna/github/card-fraud-platform/control-plane/ownership/messaging.yaml`
-- `C:/Users/kanna/github/card-fraud-platform/control-plane/ownership/storage.yaml`
-- `C:/Users/kanna/github/card-fraud-platform/control-plane/ownership/auth.yaml`
-- `C:/Users/kanna/github/card-fraud-platform/control-plane/ownership/secrets.yaml`
-- `C:/Users/kanna/github/card-fraud-platform/control-plane/logs/action-history.jsonl`
+- `control-plane/services.yaml`
+- `control-plane/ownership/database.yaml`
+- `control-plane/ownership/messaging.yaml`
+- `control-plane/ownership/storage.yaml`
+- `control-plane/ownership/auth.yaml`
+- `control-plane/ownership/secrets.yaml`
+- `control-plane/logs/action-history.jsonl`
 
 Rationale:
 
@@ -460,7 +460,7 @@ If not running in a TTY and the flags are missing, the action must fail fast.
 
 Write JSONL audit records to:
 
-- `C:/Users/kanna/github/card-fraud-platform/control-plane/logs/action-history.jsonl`
+- `control-plane/logs/action-history.jsonl`
 
 Each record should include:
 

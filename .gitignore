@@ -60,3 +60,4 @@ docker-compose.gpt.override.yml
 docker-compose.qwen.override.yml
 control-plane/logs/
 
+.precommit-home/

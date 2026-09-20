@@ -53,6 +53,7 @@ services:
       - AUTH0_DOMAIN=${AUTH0_DOMAIN}
       - AUTH0_AUDIENCE=${RULE_MGMT_AUTH0_AUDIENCE}
       - AUTH0_USER_AUDIENCE=${AUTH0_USER_AUDIENCE}
+      - METRICS_TOKEN=${METRICS_TOKEN:?Doppler must provide METRICS_TOKEN}
       # OpenTelemetry - connect to platform Jaeger
       - OTEL_ENABLED=true
       - OTEL_SERVICE_NAME=fraud-governance-api
@@ -101,8 +102,8 @@ services:
       - QUARKUS_LOG_LEVEL=INFO
       - JAVA_OPTS=-Xms1G -Xmx1536M -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+AlwaysPreTouch
       - LOAD_SHEDDING_ENABLED=false
-      - RULESET_STARTUP_LOAD_ENABLED=false
-      - RULESET_STARTUP_FAIL_FAST=false
+      - APP_RULESET_STARTUP_LOAD_ENABLED=false
+      - APP_RULESET_STARTUP_FAIL_FAST=false
       - STARTUP_VALIDATION=false
       - QUARKUS_SMALLRYE_JWT_ENABLED=false
       - SECURITY_SKIP_JWT_VALIDATION=true
@@ -171,8 +172,8 @@ services:
       - QUARKUS_LOG_LEVEL=INFO
       - JAVA_OPTS=-Xms1G -Xmx1536M -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+AlwaysPreTouch
       - LOAD_SHEDDING_ENABLED=false
-      - RULESET_STARTUP_LOAD_ENABLED=false
-      - RULESET_STARTUP_FAIL_FAST=false
+      - APP_RULESET_STARTUP_LOAD_ENABLED=false
+      - APP_RULESET_STARTUP_FAIL_FAST=false
       - STARTUP_VALIDATION=false
       - QUARKUS_SMALLRYE_JWT_ENABLED=false
       - SECURITY_SKIP_JWT_VALIDATION=true
@@ -247,6 +248,7 @@ services:
       - AUTH0_DOMAIN=${AUTH0_DOMAIN}
       - AUTH0_AUDIENCE=${TXN_MGMT_AUTH0_AUDIENCE}
       - AUTH0_USER_AUDIENCE=${AUTH0_USER_AUDIENCE}
+      - METRICS_TOKEN=${METRICS_TOKEN:?Doppler must provide METRICS_TOKEN}
     networks:
       - card-fraud-network
     depends_on:
@@ -292,6 +294,7 @@ services:
       - AUTH0_USER_AUDIENCE=${AUTH0_USER_AUDIENCE}
       - AUTH0_CLIENT_ID=${OPS_ANALYST_AUTH0_CLIENT_ID}
       - AUTH0_CLIENT_SECRET=${OPS_ANALYST_AUTH0_CLIENT_SECRET}
+      - METRICS_TOKEN=${METRICS_TOKEN:?Doppler must provide METRICS_TOKEN}
       - OPS_AGENT_RULE_MANAGEMENT_BASE_URL=http://rule-management:8000/api/v1
       - OPS_AGENT_ENABLE_LLM_REASONING=${OPS_AGENT_ENABLE_LLM_REASONING}
       - LLM_PROVIDER=${LLM_PROVIDER}
@@ -337,7 +340,7 @@ services:
       dockerfile: Dockerfile
     container_name: card-fraud-mcp-gateway
     ports:
-      - "8005:8000"
+      - "127.0.0.1:8005:8000"
     deploy:
       resources:
         limits:
@@ -349,12 +352,12 @@ services:
     environment:
       - APP_ENV=local
       - SECURITY_SKIP_JWT_VALIDATION=true
-      - GATEWAY_PG_DSN=postgresql://postgres:${POSTGRES_ADMIN_PASSWORD}@postgres:5432/fraud_gov
+      - GATEWAY_PG_DSN=postgresql://fraud_gov_mcp_reader:${FRAUD_GOV_MCP_READER_PASSWORD:?Doppler must provide the dedicated MCP reader password}@postgres:5432/fraud_gov
       - GATEWAY_PG_POOL_MIN=2
       - GATEWAY_PG_POOL_MAX=10
       - GATEWAY_PG_MAX_ROWS=500
       - GATEWAY_PG_ALLOWED_SCHEMAS=fraud_gov,public
-      - GATEWAY_PG_ALLOWED_TABLES=transactions,transaction_cases,transaction_reviews,card_profiles,fraud_rules,velocity_records
+      - GATEWAY_PG_ALLOWED_TABLES=transactions,transaction_rule_matches,transaction_reviews,analyst_notes,transaction_cases,case_activity_log,rule_fields,rule_field_versions,rule_field_metadata,rules,rule_versions,ruleset_manifest,field_registry_manifest,rulesets,ruleset_versions,ruleset_version_rules,approvals
       - GATEWAY_REDIS_URL=redis://redis:6379
       - GATEWAY_REDIS_MAX_KEYS=100
       - GATEWAY_REDIS_MAX_VALUE_BYTES=10000
@@ -365,8 +368,8 @@ services:
       - GATEWAY_KAFKA_ALLOWED_TOPICS=fraud.transactions,fraud.decisions,fraud.alerts,fraud.card.decisions.v1,test.fraud.decisions.v1
       - GATEWAY_KAFKA_ALLOWED_GROUPS=fraud-engine,card-fraud-engine
       - GATEWAY_S3_ENDPOINT=http://minio:9000
-      - GATEWAY_S3_ACCESS_KEY=${MINIO_ROOT_USER}
-      - GATEWAY_S3_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+      - GATEWAY_S3_ACCESS_KEY=${FRAUD_GOV_MCP_S3_ACCESS_KEY:?Doppler must provide the dedicated MCP S3 access key}
+      - GATEWAY_S3_SECRET_KEY=${FRAUD_GOV_MCP_S3_SECRET_KEY:?Doppler must provide the dedicated MCP S3 secret key}
       - GATEWAY_S3_REGION=${S3_REGION}
       - GATEWAY_S3_MAX_OBJECT_BYTES=1000000
       - GATEWAY_S3_ALLOWED_BUCKETS=${S3_BUCKET_NAME}
@@ -381,6 +384,11 @@ services:
       - "GATEWAY_CORS_ORIGINS=[]"
       - GATEWAY_AUTH0_DOMAIN=${AUTH0_DOMAIN}
       - GATEWAY_AUTH0_AUDIENCE=https://card-fraud-mcp-gateway
+      # The gateway loads the canonical platform service contract at runtime.
+      # Settings.services_file is exposed as GATEWAY_SERVICES_FILE.
+      - GATEWAY_SERVICES_FILE=/platform/control-plane/services.yaml
+    volumes:
+      - ./control-plane/services.yaml:/platform/control-plane/services.yaml:ro
     networks:
       - card-fraud-network
     depends_on:
@@ -395,7 +403,7 @@ services:
       jaeger:
         condition: service_started
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready')"]
       interval: 30s
       timeout: 5s
       retries: 3
